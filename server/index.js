@@ -61,7 +61,7 @@ async function sendMail({ to, subject, text, html }) {
 // ---------------------
 
 // simple root
-app.get("/", (req, res) => res.send("Support Ticket System Backend"));
+app.get("/", (req, res) => res.send(""));
 
 // ---------------------
 // Authentication
