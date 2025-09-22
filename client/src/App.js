@@ -305,7 +305,7 @@ function App() {
             <header className="header">
                         <img src={logo} alt="Company Logo" className="header-logo" />
                         <div className="header-user-info">
-                            <span>Welcome, {email} ({role})</span>
+                            <span>Welcome, {email} [{role}]</span>
                             <button onClick={handleLogout}>Logout</button>
                         </div>
                     </header>

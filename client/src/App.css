@@ -39,30 +39,29 @@
 }
 
 .spinner {
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3498db;
-    border-radius: 50%;
-    width: 16px;
-    height: 16px;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-    vertical-align: middle;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-/* Enhanced Beautiful Login Styles */
+/* Enhanced Beautiful Login Styles - Updated Colors */
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: #fAe0E4; /* Same as app-content background */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -73,12 +72,11 @@
 .login-container {
   max-width: 440px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
+  background: #fff; /* White background like dashboard containers */
+  border-radius: 10px; /* Consistent with dashboard-container */
   padding: 50px 40px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); /* Same as dashboard-container */
+  border: 1px solid #e2e8f0; /* Consistent border */
   position: relative;
   overflow: hidden;
 }
@@ -90,24 +88,20 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: #F25c54; /* Main accent color */
 }
 
 .system-title {
   text-align: center;
-  color: #2d3748;
+  color: #000035; /* Dark blue from dashboard headers */
   margin-bottom: 10px;
   font-size: 32px;
   font-weight: 700;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .system-subtitle {
   text-align: center;
-  color: #718096;
+  color: #718096; /* Subtle gray from dashboard */
   margin-bottom: 40px;
   font-size: 16px;
   font-weight: 400;
@@ -115,7 +109,7 @@
 
 .login-title {
   text-align: center;
-  color: #2d3748;
+  color: #000035; /* Dark blue from dashboard headers */
   margin-bottom: 35px;
   font-size: 28px;
   font-weight: 600;
@@ -130,20 +124,20 @@
   transform: translateX(-50%);
   width: 50px;
   height: 3px;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: #F25c54; /* Main accent color */
   border-radius: 2px;
 }
 
 .error-message {
-  background: linear-gradient(135deg, #fed7d7, #feb2b2);
-  color: #c53030;
+  background: #fed7d7; /* Light red background */
+  color: #c53030; /* Dark red text */
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 8px; /* Consistent with other elements */
   margin-bottom: 25px;
   border-left: 4px solid #fc8181;
   text-align: center;
   font-weight: 500;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .login-form {
@@ -158,26 +152,26 @@
 
 .form-input {
   padding: 18px 20px;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  border: 2px solid #e2e8f0; /* Consistent border color */
+  border-radius: 8px; /* Consistent radius */
   font-size: 16px;
   transition: all 0.3s ease;
   box-sizing: border-box;
   width: 100%;
   background: #ffffff;
-  color: #2d3748;
+  color: #000035; /* Dark blue text */
   font-weight: 500;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: #F25c54; /* Main accent color */
+  box-shadow: 0 0 0 4px rgba(242, 92, 84, 0.1); /* Accent color with opacity */
   transform: translateY(-2px);
 }
 
 .form-input::placeholder {
-  color: #a0aec0;
+  color: #a0aec0; /* Consistent placeholder color */
   font-weight: 400;
 }
 
@@ -186,15 +180,15 @@
   right: 20px;
   top: 50%;
   transform: translateY(-50%);
-  color: #a0aec0;
+  color: #a0aec0; /* Consistent icon color */
   font-size: 20px;
 }
 
 .login-button {
   padding: 18px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
+  background: transparent; /* Outline style like other buttons */
+  color: #F25c54; /* Main accent color */
+  border: 2px solid #F25c54; /* Outline border */
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
@@ -206,24 +200,11 @@
   overflow: hidden;
 }
 
-.login-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.login-button:hover::before {
-  left: 100%;
-}
-
 .login-button:hover {
+  background-color: #F25c54; /* Fill on hover */
+  color: #000035; /* Dark text on hover */
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 8px rgba(242, 92, 84, 0.3); /* Consistent shadow */
 }
 
 .login-button:active {
@@ -239,12 +220,12 @@
 .login-footer {
   text-align: center;
   margin-top: 30px;
-  color: #718096;
+  color: #718096; /* Subtle gray */
   font-size: 14px;
 }
 
 .login-footer a {
-  color: #667eea;
+  color: #F25c54; /* Main accent color */
   text-decoration: none;
   font-weight: 500;
 }
@@ -262,7 +243,7 @@
   .login-container {
     margin: 0;
     padding: 40px 25px;
-    border-radius: 16px;
+    border-radius: 10px;
   }
   
   .system-title {
@@ -318,16 +299,24 @@
 
 .header-user-info button {
   padding: 8px 16px;
-  background-color: #F25c54;
-  border: none;
+  background-color: transparent;
+  border: 2px solid #F25c54;
   border-radius: 8px;
-  color: #000035;
+  color: #F25c54;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  font-weight: 600;
 }
 
 .header-user-info button:hover {
-  background-color: #e55349;
+  background-color: #F25c54;
+  color: #000035;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(242, 92, 84, 0.3);
+}
+
+.header-user-info button:active {
+  transform: translateY(0);
 }
 
 .dashboard-container {
@@ -342,6 +331,7 @@
 .dashboard-container h3 {
   color: #000035;
   font-size: 24px;
+  text-align: center;
   border-bottom: 2px solid #e2e8f0;
   padding-bottom: 10px;
   margin-bottom: 20px;
@@ -375,24 +365,40 @@
 .dashboard-container .submit-button {
   grid-column: span 2;
   padding: 15px;
-  background-color: #F25c54;
-  color: #000035;
-  border: none;
+  background-color: transparent;
+  color: #F25c54;
+  border: 2px solid #F25c54;
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.3s ease;
 }
 
 .dashboard-container .submit-button:hover {
-  background-color: #e55349;
+  background-color: #F25c54;
+  color: #000035;
   transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(242, 92, 84, 0.3);
+}
+
+.dashboard-container .submit-button:active {
+  transform: translateY(0);
 }
 
 .dashboard-container .submit-button:disabled {
-  background: #cbd5e1;
+  background-color: transparent;
+  color: #cbd5e1;
+  border-color: #cbd5e1;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dashboard-container .submit-button:disabled:hover {
+  background-color: transparent;
+  color: #cbd5e1;
+  border-color: #cbd5e1;
 }
 
 .footer {
@@ -431,193 +437,21 @@
 
 .user-ticket-list li button {
   padding: 8px 12px;
-  border: 1px solid #F25c54;
-  background-color: #F25c54;
-  color: #000035;
+  border: 2px solid #F25c54;
+  background-color: transparent;
+  color: #F25c54;
   border-radius: 8px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
 }
 
 .user-ticket-list li button:hover {
-  background-color: #e55349;
+  background-color: #F25c54;
+  color: #000035;
 }
 
 /* Admin dashboard specific styles */
-.admin-controls {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.admin-controls button {
-  padding: 10px 15px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #000035;
-}
-
-.admin-controls button:hover {
-  background: #e2e8f0;
-}
-
-.admin-controls button.active {
-  background: #F25c54;
-  color: #000035;
-  border-color: #F25c54;
-}
-
-.admin-controls input {
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.admin-controls form button {
-  background: #F25c54;
-  color: #000035;
-  border: none;
-}
-
-.admin-controls form button:hover {
-  background: #e55349;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.admin-table th,
-.admin-table td {
-  padding: 12px;
-  border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-}
-
-.admin-table th {
-  background: #f7fafc;
-  font-weight: 600;
-  color: #000035;
-}
-
-.admin-table td {
-  color: #000035;
-}
-
-.admin-table td button {
-  margin-right: 5px;
-}
-
-/* New popup styles for the history modal */
-.popup-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.popup {
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  border: 1px solid #e2e8f0;
-  position: relative;
-}
-
-.popup-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-
-.popup-header h3 {
-  margin: 0;
-  font-size: 20px;
-  color: #000035;
-}
-
-.close-button {
-  background: #F25c54;
-  color: #000035;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  transition: color 0.3s;
-}
-
-.close-button:hover {
-  background-color: #e55349;
-}
-
-.history-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.history-list li {
-  background: #f7fafc;
-  padding: 15px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.history-list li strong {
-  color: #000035;
-}
-
-.history-list li em {
-  display: block;
-  margin-top: 5px;
-  color: #000035;
-  font-style: normal;
-}
-
-.history-list li small {
-  display: block;
-  margin-top: 5px;
-  color: #cbd5e1;
-  font-size: 12px;
-}
-
-/* Admin Dashboard Styling */
-.admin-dashboard {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-}
-
-.admin-dashboard h3 {
-  color: #000035;
-  font-size: 24px;
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-
 .admin-controls {
   display: flex;
   flex-wrap: wrap;
@@ -629,24 +463,23 @@
 .admin-controls button {
   padding: 10px 15px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 2px solid #F25c54;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   font-size: 14px;
   font-weight: 500;
-  color: #000035;
+  color: #F25c54;
 }
 
 .admin-controls button:hover {
-  background: #f0f4f8;
-  border-color: #cbd5e1;
+  background: #F25c54;
+  color: #000035;
 }
 
 .admin-controls button.active {
   background: #F25c54;
   color: #000035;
-  border-color: #F25c54;
 }
 
 .admin-controls input[type="text"] {
@@ -658,13 +491,14 @@
 }
 
 .admin-controls form button {
-  background: #F25c54;
-  color: #000035;
-  border: none;
+  background: transparent;
+  color: #F25c54;
+  border: 2px solid #F25c54;
 }
 
 .admin-controls form button:hover {
-  background: #e55349;
+  background: #F25c54;
+  color: #000035;
 }
 
 .admin-table-container {
@@ -707,20 +541,35 @@
 .admin-table td button {
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background-color: #F25c54;
-  color: #000035;
+  border: 2px solid #F25c54;
+  background-color: transparent;
+  color: #F25c54;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
   margin-right: 5px;
+  font-weight: 500;
 }
 
 .admin-table td button:hover {
-  background: #e55349;
+  background: #F25c54;
+  color: #000035;
 }
 
-/* Updated Popup Styles */
+/* Popup styles */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
 .popup {
   background: #fff;
   padding: 30px;
@@ -749,20 +598,59 @@
 }
 
 .close-button {
-  background: #F25c54;
-  color: #000035;
-  border: none;
+  background: transparent;
+  color: #F25c54;
+  border: 2px solid #F25c54;
   border-radius: 50%;
   width: 35px;
   height: 35px;
   font-size: 20px;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close-button:hover {
-  background-color: #e55349;
+  background-color: #F25c54;
+  color: #000035;
   transform: rotate(90deg);
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.history-list li {
+  background: #f7fafc;
+  padding: 15px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.history-list li strong {
+  color: #000035;
+}
+
+.history-list li em {
+  display: block;
+  margin-top: 5px;
+  color: #000035;
+  font-style: normal;
+}
+
+.history-list li small {
+  display: block;
+  margin-top: 5px;
+  color: #cbd5e1;
+  font-size: 12px;
 }
 
 .popup p, .popup ul {
@@ -783,16 +671,18 @@
 .popup button {
   padding: 10px 15px;
   border-radius: 8px;
-  border: none;
-  background: #F25c54;
-  color: #000035;
+  border: 2px solid #F25c54;
+  background: transparent;
+  color: #F25c54;
   cursor: pointer;
   transition: background-color 0.2s;
   margin-right: 10px;
+  font-weight: 500;
 }
 
 .popup button:hover {
-  background: #e55349;
+  background: #F25c54;
+  color: #000035;
 }
 
 .popup ul {
@@ -814,4 +704,15 @@
   margin-bottom: 5px;
   color: #a0aec0;
   font-size: 12px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
