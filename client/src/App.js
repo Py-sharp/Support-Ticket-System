@@ -9,6 +9,7 @@ function App() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
+    const [loginTitle, setLoginTitle] = useState("Welcome to our Support Portal");
 
     // User state
     const [tickets, setTickets] = useState([]);
@@ -77,6 +78,13 @@ function App() {
 
             if (!res.ok) throw new Error("Invalid credentials");
             const data = await res.json();
+
+            // Set the login title based on the role
+            if (data.user.role === "Admin") {
+                setLoginTitle("Admin Login");
+            } else {
+                setLoginTitle("User Login");
+            }
 
             setIsLoggedIn(true);
             setRole(data.user.role);
@@ -239,20 +247,59 @@ function App() {
         }
     };
 
+    // App.js
     const handleRegisterUser = async () => {
         const userEmail = prompt("Enter new user's email:");
         if (!userEmail) return;
 
-        const res = await fetch("http://localhost:5000/admin/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: userEmail }),
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert(`User ${userEmail} registered successfully! An auto-generated password has been emailed to them.`);
-        } else {
-            alert(`Error: ${data.message}`);
+        // Generate a simple, random password
+        const autoPassword = Math.random().toString(36).slice(-8);
+
+        try {
+            const res = await fetch("http://localhost:5000/admin/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: userEmail, password: autoPassword }), // Add the password here
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded with an error: ${res.status} - ${errorText}`);
+            }
+
+            const data = await res.json();
+
+            if (data.success) {
+                alert(`User ${userEmail} registered successfully! An auto-generated password (${autoPassword}) has been emailed to them.`);
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (err) {
+            console.error("Failed to register user:", err);
+            alert("Registration failed. Please check the console for details.");
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        const userEmail = prompt("Please enter your email to reset your password:");
+        if (!userEmail) return;
+
+        try {
+            const res = await fetch("http://localhost:5000/forgot-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: userEmail }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (error) {
+            console.error("Forgot password request failed:", error);
+            alert("Could not connect to the server. Please try again later.");
         }
     };
 
@@ -262,8 +309,8 @@ function App() {
             <div className="login-page">
                 <div className="login-container">
                     <h1 className="system-title">Support Ticket System</h1>
-                    <p className="system-subtitle">Manage your support requests efficiently</p>
-                    <h2 className="login-title">Welcome Back</h2>
+                    <p className="system-subtitle">Manage your support requests efficiently.</p>
+                    <h2 className="login-title">{loginTitle}</h2>
                     {loginError && <div className="error-message">{loginError}</div>}
                     <form className="login-form" onSubmit={handleLogin}>
                         <div className="form-group">
@@ -293,7 +340,7 @@ function App() {
                         </button>
                     </form>
                     <div className="login-footer">
-                        <p>Need help? Contact system administrator</p>
+                        <p>Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a></p>
                     </div>
                 </div>
             </div>
@@ -303,12 +350,12 @@ function App() {
     return (
         <div className="app-content">
             <header className="header">
-                        <img src={logo} alt="Company Logo" className="header-logo" />
-                        <div className="header-user-info">
-                            <span>Welcome, {email} [{role}]</span>
-                            <button onClick={handleLogout}>Logout</button>
-                        </div>
-                    </header>
+                <img src={logo} alt="Company Logo" className="header-logo" />
+                <div className="header-user-info">
+                    <span>Welcome, {email} [{role}]</span>
+                    <button onClick={handleLogout}>Logout</button>
+                </div>
+            </header>
 
             <main className="dashboard-container">
                 {/* ------------------- USER VIEW ------------------- */}

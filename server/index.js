@@ -89,6 +89,86 @@ app.post("/admin/login", (req, res) => {
     return res.json({ success: true, user: { email: admin.email, role: admin.role } });
 });
 
+// Admin: register user (admin creates users)
+app.post("/admin/register", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, message: "Email and password required" });
+
+    const exists = users.find(u => u.email === email);
+    if (exists) return res.status(400).json({ success: false, message: "User already exists" });
+
+    const newUser = { email, password, role: "User" };
+    users.push(newUser);
+
+    try {
+        await sendMail({
+            to: email,
+            subject: "Your account has been created",
+            text: `Hello,\n\nAn account was created for you.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease log in at the support portal.`
+        });
+        console.log(`Registration email sent to ${email}`);
+    } catch (err) {
+        console.error("Email error on registration:", err);
+    }
+
+    return res.json({ success: true, user: newUser });
+});
+
+// User password update
+app.put("/user/update-password", (req, res) => {
+    const { email, currentPassword, newPassword } = req.body;
+    
+    // 1. Basic validation
+    if (!email || !currentPassword || !newPassword) {
+        return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    // 2. Find the user
+    const user = users.find(u => u.email === email);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // 3. Verify the current password
+    if (user.password !== currentPassword) {
+        return res.status(401).json({ success: false, message: "Incorrect current password" });
+    }
+
+    // 4. Update the password
+    user.password = newPassword;
+    console.log(`Password for user ${email} updated successfully.`);
+    
+    // 5. Respond to the client
+    return res.json({ success: true, message: "Password updated successfully" });
+});
+
+// User forgot password
+app.post("/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    const user = users.find(u => u.email === email);
+
+    if (!user) {
+        // Send a generic message to prevent user enumeration
+        return res.json({ success: true, message: "If an account with that email exists, a password reset email has been sent." });
+    }
+
+    // Generate a new temporary password
+    const temporaryPassword = Math.random().toString(36).slice(-8);
+    user.password = temporaryPassword; // Update the in-memory password
+
+    try {
+        await sendMail({
+            to: email,
+            subject: "Your Temporary Password",
+            text: `Hello,\n\nYour temporary password is: ${temporaryPassword}\n\nPlease use this to log in and change your password immediately.`
+        });
+        return res.json({ success: true, message: "A temporary password has been sent to your email." });
+    } catch (err) {
+        console.error("Email error on password reset:", err);
+        return res.status(500).json({ success: false, message: "Failed to send reset email. Please try again." });
+    }
+});
+
 // ---------------------
 // Ticket endpoints
 // ---------------------
@@ -122,7 +202,7 @@ app.post("/tickets", async (req, res) => {
 
     tickets.push(newTicket);
 
-    // Email admin and user
+    // Email admin and user...
     try {
         // admin
         await sendMail({
@@ -130,14 +210,12 @@ app.post("/tickets", async (req, res) => {
             subject: `New Ticket Created (Ref #${newTicket.id})`,
             text: `A new ticket was created.\n\nRef #: ${newTicket.id}\nProduct: ${product}\nTitle: ${title}\nDescription: ${description}\nPriority: ${priority}\nCategory: ${category}\nCreated By: ${email}`
         });
-
         // user confirmation
         await sendMail({
             to: email,
             subject: `Ticket Confirmation - Ref #${newTicket.id}`,
             text: `Hello,\n\nYour ticket has been created.\nRef #: ${newTicket.id}\nProduct: ${product}\nTitle: ${title}\nStatus: Open\n\nWe will update you when it is addressed.`
         });
-
         console.log(`Emails sent: admin->${emailConfig.Username}, user->${email}`);
     } catch (err) {
         console.error("Email error on ticket creation:", err);
@@ -155,101 +233,87 @@ app.get("/tickets/:email", (req, res) => {
 
 // Get ticket details by id
 app.get("/ticket/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const ticket = tickets.find(t => t.id === id);
+    const { id } = req.params;
+    const ticket = tickets.find(t => t.id === parseInt(id));
     if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
     return res.json(ticket);
 });
 
-// Get all tickets for a user filtered by product name (for history popup)
-app.get("/tickets/:email/product/:productName", (req, res) => {
-    const { email, productName } = req.params;
-    const userTickets = tickets.filter(t => t.createdBy === email && t.product.toLowerCase() === productName.toLowerCase());
-    return res.json(userTickets);
-});
-
-// Admin: get all tickets
+// Admin: Get all tickets
 app.get("/admin/tickets", (req, res) => {
-    // in real-world you'd authenticate admin; here we trust caller
     return res.json(tickets);
 });
 
-// Admin: get all tickets for a specific product
+// Admin: Get tickets by product name
 app.get("/admin/tickets/product/:productName", (req, res) => {
     const { productName } = req.params;
-    const productTickets = tickets.filter(t => t.product.toLowerCase() === productName.toLowerCase());
+    const productTickets = tickets.filter(t => t.product.toLowerCase().includes(productName.toLowerCase()));
     return res.json(productTickets);
 });
 
-// Admin: update ticket (actionTaken, status)
+// Admin: Update ticket status and action taken
 app.put("/admin/tickets/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const { actionTaken, status } = req.body;
-
-    const ticket = tickets.find(t => t.id === id);
+    const { id } = req.params;
+    const { status, actionTaken } = req.body;
+    const ticket = tickets.find(t => t.id === parseInt(id));
     if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
 
-    if (actionTaken !== undefined) ticket.actionTaken = actionTaken;
-    if (status) ticket.status = status;
+    ticket.status = status;
+    ticket.actionTaken = actionTaken;
+    console.log(`Ticket ${id} updated: Status=${status}, Action Taken=${actionTaken}`);
 
-    // Notify user about status change / action
     try {
-        const userEmail = ticket.createdBy;
-        const subject = `Update on Ticket Ref #${ticket.id} — ${ticket.status}`;
-        const text = `Hello,\n\nYour ticket (Ref #${ticket.id}) has been updated by admin.\n\nStatus: ${ticket.status}\nAction Taken: ${ticket.actionTaken || "No action written"}\n\nIf you have questions reply to this email.\n\nSupport Team`;
-
-        await sendMail({ to: userEmail, subject, text });
-        console.log(`Status update email sent to ${userEmail}`);
+        await sendMail({
+            to: ticket.createdBy,
+            subject: `Ticket Update - Ref #${ticket.id}`,
+            text: `Hello,\n\nYour ticket with reference number #${ticket.id} has been updated.\nNew Status: ${status}\nAction Taken: ${actionTaken}`
+        });
+        console.log(`Update email sent to user ${ticket.createdBy}`);
     } catch (err) {
-        console.error("Email error on update:", err);
+        console.error("Email error on ticket update:", err);
     }
 
     return res.json({ success: true, ticket });
 });
 
-// Admin: mark collect (sends collection email to user)
+// Admin: Mark for collection and send email
 app.post("/admin/tickets/:id/collect", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const ticket = tickets.find(t => t.id === id);
+    const { id } = req.params;
+    const ticket = tickets.find(t => t.id === parseInt(id));
     if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
-
-    // Optionally update status
+    
     ticket.status = "Ready for Collection";
+    console.log(`Ticket ${id} marked for collection.`);
 
     try {
-        const userEmail = ticket.createdBy;
-        const subject = `Item Ready for Collection - Ref #${ticket.id}`;
-        const text = `Hello,\n\nYour item related to ticket Ref #${ticket.id} (Product: ${ticket.product}) is ready for collection.\n\nPlease collect it at your earliest convenience.\n\nSupport Team`;
-
-        await sendMail({ to: userEmail, subject, text });
-        console.log(`Collect email sent to ${userEmail}`);
+        await sendMail({
+            to: ticket.createdBy,
+            subject: `Ticket Ready for Collection - Ref #${ticket.id}`,
+            text: `Hello,\n\nYour ticket with reference number #${ticket.id} is now Ready for Collection.`
+        });
+        console.log(`Collection email sent to user ${ticket.createdBy}`);
     } catch (err) {
-        console.error("Email error on collect:", err);
+        console.error("Email error on collection:", err);
     }
 
     return res.json({ success: true, ticket });
 });
 
-// Admin: send custom message to user about a ticket
+// Admin: Add a custom message
 app.post("/admin/tickets/:id/message", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
     const { message } = req.body;
-    if (!message) return res.status(400).json({ success: false, message: "Message required" });
-
-    const ticket = tickets.find(t => t.id === id);
+    const ticket = tickets.find(t => t.id === parseInt(id));
     if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
 
-    const newMessage = {
-        text: message,
-        timestamp: new Date().toISOString()
-    };
-    ticket.messages.push(newMessage); // Store the message
-
+    const newMessage = { text: message, timestamp: new Date().toISOString() };
+    ticket.messages.push(newMessage);
+    console.log(`Custom message added to ticket ${id}.`);
+    
     try {
         const userEmail = ticket.createdBy;
-        const subject = `Message from Support — Ref #${ticket.id}`;
-        const text = `Hello,\n\nAdmin sent the following message regarding your ticket Ref #${ticket.id}:\n\n${message}\n\nSupport Team`;
-
+        const subject = `New Message on your Ticket (Ref #${ticket.id})`;
+        const text = `Hello,\n\nYou have a new message on your ticket Ref #${ticket.id}:\n\n${message}\n\nSupport Team`;
         await sendMail({ to: userEmail, subject, text });
         console.log(`Custom message email sent to ${userEmail}`);
     } catch (err) {
@@ -259,34 +323,6 @@ app.post("/admin/tickets/:id/message", async (req, res) => {
     return res.json({ success: true });
 });
 
-// Admin: register user (admin creates users)
-app.post("/admin/register", async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ success: false, message: "Email and password required" });
-
-    const exists = users.find(u => u.email === email);
-    if (exists) return res.status(400).json({ success: false, message: "User already exists" });
-
-    const newUser = { email, password, role: "User" };
-    users.push(newUser);
-
-    try {
-        await sendMail({
-            to: email,
-            subject: "Your account has been created",
-            text: `Hello,\n\nAn account was created for you.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease log in at the support portal.`
-        });
-        console.log(`Registration email sent to ${email}`);
-    } catch (err) {
-        console.error("Email error on registration:", err);
-    }
-
-    return res.json({ success: true, user: { email: newUser.email } });
-});
-
-// ---------------------
-// Start server
-// ---------------------
 app.listen(port, () => {
-    console.log(`✅ Server listening on http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });

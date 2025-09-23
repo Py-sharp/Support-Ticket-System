@@ -341,12 +341,13 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+  align-items: start; /* Ensure proper alignment */
 }
 
 .dashboard-container .form-group {
   display: flex;
   flex-direction: column;
-}
+}                         
 
 .dashboard-container .form-group label {
   margin-bottom: 5px;
@@ -403,7 +404,7 @@
 
 .footer {
   background-color: #fAe0E4;
-  color: #fff;
+  color: #000;
   text-align: center;
   padding: 20px;
   margin-top: 40px;
@@ -412,7 +413,7 @@
 /* User dashboard specific styles */
 .user-dashboard h3 {
   background: #f7fafc;
-  padding: 15px;
+  padding: 15px;      
   border-radius: 8px;
   color: #000035;
 }
