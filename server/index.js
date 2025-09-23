@@ -114,6 +114,37 @@ app.post("/admin/register", async (req, res) => {
     return res.json({ success: true, user: newUser });
 });
 
+// Admin: Get all users (excluding admin)
+app.get("/admin/users", (req, res) => {
+    // Return all users except the admin
+    const nonAdminUsers = users.filter(user => user.role !== "Admin");
+    return res.json(nonAdminUsers);
+});
+
+// Admin: Deregister user
+app.delete("/admin/users/:email", (req, res) => {
+    const { email } = req.params;
+    
+    // Prevent admin from deregistering themselves
+    if (email === emailConfig.Username) {
+        return res.status(400).json({ success: false, message: "Cannot deregister admin user" });
+    }
+
+    const userIndex = users.findIndex(u => u.email === email);
+    if (userIndex === -1) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Remove user's tickets
+    tickets = tickets.filter(ticket => ticket.createdBy !== email);
+    
+    // Remove user
+    users.splice(userIndex, 1);
+
+    console.log(`User ${email} deregistered successfully`);
+    return res.json({ success: true, message: "User deregistered successfully" });
+});
+
 // User password update
 app.put("/user/update-password", (req, res) => {
     const { email, currentPassword, newPassword } = req.body;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import logo from "./images/logo-removebg-preview.png"
+import logo from "./images/logo-removebg-preview.png";
 
 function App() {
     const [message, setMessage] = useState("");
@@ -23,6 +23,8 @@ function App() {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [passwordChangeMessage, setPasswordChangeMessage] = useState("");
+    const [showQuickActions, setShowQuickActions] = useState(false); // New state for quick actions on user side
+    const [userView, setUserView] = useState("tickets"); // "tickets" or "passwordChange"
 
     // Admin state
     const [allTickets, setAllTickets] = useState([]); // Master list of all tickets
@@ -33,6 +35,13 @@ function App() {
     const [productHistoryPopup, setProductHistoryPopup] = useState(false);
     const [productHistory, setProductHistory] = useState([]);
     const [historyProductName, setHistoryProductName] = useState("");
+    
+    const [users, setUsers] = useState([]);
+    const [adminView, setAdminView] = useState("tickets"); // "tickets" or "userManagement"
+    
+    // New state for header enhancements
+    const [showQuickMenu, setShowQuickMenu] = useState(false);
+    const [unreadTickets, setUnreadTickets] = useState(0);
 
     useEffect(() => {
         fetch("http://localhost:5000/")
@@ -40,22 +49,25 @@ function App() {
             .then((data) => setMessage(data));
     }, []);
 
-    // Effect to handle filtering when tickets, search query, or filter status changes
     useEffect(() => {
         let filtered = [...allTickets];
 
-        // Apply search filter first
         if (searchQuery) {
             filtered = filtered.filter(t => t.product.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
-        // Apply status filter
         if (filterStatus !== "All") {
             filtered = filtered.filter(t => t.status === filterStatus);
         }
 
         setDisplayedTickets(filtered);
-    }, [allTickets, searchQuery, filterStatus]);
+        
+        // Update unread tickets count for admin
+        if (role === "Admin") {
+            const newTickets = allTickets.filter(t => t.status === "Open").length;
+            setUnreadTickets(newTickets);
+        }
+    }, [allTickets, searchQuery, filterStatus, role]);
 
 
     // ------------------- LOGIN -------------------
@@ -79,7 +91,6 @@ function App() {
             if (!res.ok) throw new Error("Invalid credentials");
             const data = await res.json();
 
-            // Set the login title based on the role
             if (data.user.role === "Admin") {
                 setLoginTitle("Admin Login");
             } else {
@@ -90,11 +101,11 @@ function App() {
             setRole(data.user.role);
             setEmail(data.user.email);
 
-            // Load tickets based on role
             if (data.user.role === "User") {
                 fetchTickets(data.user.email);
-            } else { // Admin
+            } else { 
                 fetchAllTickets();
+                fetchUsers();
             }
         } catch (err) {
             setLoginError("Invalid email or password");
@@ -114,6 +125,12 @@ function App() {
                 setAllTickets(data);
             });
     };
+    
+    const fetchUsers = () => {
+        fetch("http://localhost:5000/admin/users")
+            .then((res) => res.json())
+            .then((data) => setUsers(data));
+    };
 
     const handleLogout = () => {
         setIsLoggedIn(false);
@@ -131,6 +148,11 @@ function App() {
         setProductHistoryPopup(false);
         setProductHistory([]);
         setHistoryProductName("");
+        setShowQuickMenu(false);
+        setUnreadTickets(0);
+        setShowQuickActions(false); // Reset user quick actions
+        setUserView("tickets"); // Reset user view
+        setAdminView("tickets"); // Reset admin view
     };
 
     const handlePasswordChange = async (e) => {
@@ -152,7 +174,7 @@ function App() {
             setPasswordChangeMessage("Password updated successfully!");
             setCurrentPassword("");
             setNewPassword("");
-            setPassword(newPassword); // Update state to prevent re-login issue
+            setPassword(newPassword); 
         } else {
             setPasswordChangeMessage(data.message);
         }
@@ -182,7 +204,6 @@ function App() {
         }
     };
 
-    // This function is now only for admin use
     const openAdminProductHistoryPopup = async (productName) => {
         setHistoryProductName(productName);
         setProductHistoryPopup(true);
@@ -200,9 +221,6 @@ function App() {
     // ------------------- ADMIN -------------------
     const handleAdminSearch = (e) => {
         e.preventDefault();
-        // The useEffect hook now handles the filtering based on searchQuery state.
-        // We just need to trigger a state update.
-        setSearchQuery(searchQuery);
     };
 
     const closeTicketDetailsPopup = () => {
@@ -215,9 +233,8 @@ function App() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status, actionTaken }),
         });
-        fetchAllTickets(); // Refresh all tickets
+        fetchAllTickets(); 
         if (selectedTicket && selectedTicket.id === id) {
-            // Re-fetch the single ticket to update the popup
             const res = await fetch(`http://localhost:5000/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
@@ -228,18 +245,18 @@ function App() {
         await fetch(`http://localhost:5000/admin/tickets/${id}/collect`, {
             method: "POST",
         });
-        fetchAllTickets(); // Refresh all tickets
+        fetchAllTickets(); 
     };
 
     const handleCommunicate = async (id) => {
-        const message = prompt("Enter custom message to user:");
+        const message = window.prompt("Enter custom message to user:");
         if (!message) return;
         await fetch(`http://localhost:5000/admin/tickets/${id}/message`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message }),
         });
-        fetchAllTickets(); // Refresh all tickets
+        fetchAllTickets(); 
         if (selectedTicket && selectedTicket.id === id) {
             const res = await fetch(`http://localhost:5000/ticket/${id}`);
             const updatedTicket = await res.json();
@@ -247,19 +264,17 @@ function App() {
         }
     };
 
-    // App.js
     const handleRegisterUser = async () => {
-        const userEmail = prompt("Enter new user's email:");
+        const userEmail = window.prompt("Enter new user's email:");
         if (!userEmail) return;
 
-        // Generate a simple, random password
         const autoPassword = Math.random().toString(36).slice(-8);
 
         try {
             const res = await fetch("http://localhost:5000/admin/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: userEmail, password: autoPassword }), // Add the password here
+                body: JSON.stringify({ email: userEmail, password: autoPassword }),
             });
 
             if (!res.ok) {
@@ -270,18 +285,49 @@ function App() {
             const data = await res.json();
 
             if (data.success) {
-                alert(`User ${userEmail} registered successfully! An auto-generated password (${autoPassword}) has been emailed to them.`);
+                window.alert(`User ${userEmail} registered successfully! An auto-generated password (${autoPassword}) has been emailed to them.`);
+                fetchUsers();
             } else {
-                alert(`Error: ${data.message}`);
+                window.alert(`Error: ${data.message}`);
             }
         } catch (err) {
             console.error("Failed to register user:", err);
-            alert("Registration failed. Please check the console for details.");
+            window.alert("Registration failed. Please check the console for details.");
+        }
+    };
+    
+    const handleDeregisterUser = async (userEmail) => {
+        if (!window.confirm(`Are you sure you want to deregister ${userEmail}? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`http://localhost:5000/admin/users/${userEmail}`, {
+                method: "DELETE",
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded with an error: ${res.status} - ${errorText}`);
+            }
+
+            const data = await res.json();
+
+            if (data.success) {
+                window.alert(`User ${userEmail} deregistered successfully!`);
+                fetchUsers();
+                fetchAllTickets();
+            } else {
+                window.alert(`Error: ${data.message}`);
+            }
+        } catch (err) {
+            console.error("Failed to deregister user:", err);
+            window.alert("Deregistration failed. Please check the console for details.");
         }
     };
 
     const handleForgotPassword = async () => {
-        const userEmail = prompt("Please enter your email to reset your password:");
+        const userEmail = window.prompt("Please enter your email to reset your password:");
         if (!userEmail) return;
 
         try {
@@ -293,13 +339,13 @@ function App() {
 
             const data = await res.json();
             if (res.ok) {
-                alert(data.message);
+                window.alert(data.message);
             } else {
-                alert(`Error: ${data.message}`);
+                window.alert(`Error: ${data.message}`);
             }
         } catch (error) {
             console.error("Forgot password request failed:", error);
-            alert("Could not connect to the server. Please try again later.");
+            window.alert("Could not connect to the server. Please try again later.");
         }
     };
 
@@ -349,11 +395,195 @@ function App() {
 
     return (
         <div className="app-content">
+            {/* Enhanced Header */}
             <header className="header">
-                <img src={logo} alt="Company Logo" className="header-logo" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <img src={logo} alt="Company Logo" className="header-logo" />
+                    <div style={{ borderLeft: '2px solid #F25c54', height: '40px' }}></div>
+                    <div>
+                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#000035' }}>
+                            Support Portal
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#718096' }}>
+                            {role === 'Admin' ? 'Administrator Dashboard' : 'User Support Center'}
+                        </div>
+                    </div>
+                </div>
+                
                 <div className="header-user-info">
-                    <span>Welcome, {email} [{role}]</span>
-                    <button onClick={handleLogout}>Logout</button>
+                    <div className="header-welcome">
+                        <div className="user-avatar">
+                            {email.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: '500' }}>{email}</div>
+                            <span className="user-status-badge">{role}</span>
+                        </div>
+                    </div>
+                    
+                    {/* Admin's Quick Actions Menu */}
+                    {role === "Admin" && (
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {unreadTickets > 0 && (
+                                <div style={{
+                                    background: '#e53e3e',
+                                    color: 'white',
+                                    borderRadius: '50%',
+                                    width: '20px',
+                                    height: '20px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {unreadTickets}
+                                </div>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    setShowQuickMenu(!showQuickMenu);
+                                    if (!showQuickMenu) setAdminView("tickets"); // Hide user management if menu is about to open
+                                }}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#F25c54',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Quick Actions ▼
+                            </button>
+                            
+                            {showQuickMenu && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    right: 0,
+                                    background: 'white',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    padding: '10px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    zIndex: 1000,
+                                    minWidth: '200px'
+                                }}>
+                                    <button 
+                                        onClick={() => { handleRegisterUser(); setShowQuickMenu(false); }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px',
+                                            textAlign: 'left',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px'
+                                        }}
+                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
+                                        onMouseLeave={(e) => e.target.style.background = 'none'}
+                                    >
+                                        ➕ Register New User
+                                    </button>
+                                    <button 
+                                        onClick={() => { setAdminView("userManagement"); setShowQuickMenu(false); }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px',
+                                            textAlign: 'left',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px'
+                                        }}
+                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
+                                        onMouseLeave={(e) => e.target.style.background = 'none'}
+                                    >
+                                        👥 Manage Users
+                                    </button>
+                                    <div style={{borderTop: '1px solid #e2e8f0', margin: '5px 0'}}></div>
+                                    <div style={{padding: '8px', fontSize: '12px', color: '#718096'}}>
+                                        Tickets: {allTickets.length} | Users: {users.filter(u => u.role === 'User').length}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                     {/* User's Quick Actions menu */}
+                     {role === "User" && (
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <button
+                                onClick={() => {
+                                    setShowQuickActions(!showQuickActions);
+                                    if (!showQuickActions) setUserView("tickets"); // Hide password form if menu is about to open
+                                }}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#F25c54',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Quick Actions ▼
+                            </button>
+                            {showQuickActions && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    right: 0,
+                                    background: 'white',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    padding: '10px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    zIndex: 1000,
+                                    minWidth: '200px'
+                                }}>
+                                    <button
+                                        onClick={() => {
+                                            setUserView("passwordChange");
+                                            setShowQuickActions(false);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px',
+                                            textAlign: 'left',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px'
+                                        }}
+                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
+                                        onMouseLeave={(e) => e.target.style.background = 'none'}
+                                    >
+                                        Change Password
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    <button onClick={handleLogout} style={{ 
+                        padding: '10px 20px', 
+                        background: 'transparent', 
+                        border: '2px solid #F25c54', 
+                        borderRadius: '8px', 
+                        color: '#F25c54', 
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        transition: 'all 0.3s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span>🚪</span> Logout
+                    </button>
                 </div>
             </header>
 
@@ -361,156 +591,203 @@ function App() {
                 {/* ------------------- USER VIEW ------------------- */}
                 {role === "User" && (
                     <div className="user-dashboard">
-                        {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
-
-                        <h3>Create Ticket</h3>
-                        <form onSubmit={handleCreateTicket}>
-                            <div className="form-group">
-                                <label htmlFor="product">Product</label>
-                                <input id="product" type="text" value={product} onChange={(e) => setProduct(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="title">Title</label>
-                                <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="description">Description</label>
-                                <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="category">Category</label>
-                                <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                                    <option>General</option>
-                                    <option>Technical</option>
-                                    <option>Billing</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="priority">Priority</label>
-                                <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
-                                    <option>Low</option>
-                                    <option>Medium</option>
-                                    <option>High</option>
-                                </select>
-                            </div>
-                            <button className="submit-button" type="submit" disabled={loading}>{loading ? "Loading..." : "Submit Ticket"}</button>
-                        </form>
-
-                        <hr style={{ margin: "20px 0" }} />
-
-                        <h3>Change Password</h3>
-                        <form onSubmit={handlePasswordChange}>
-                            <div className="form-group">
-                                <label htmlFor="currentPassword">Current Password</label>
-                                <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="newPassword">New Password</label>
-                                <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                            </div>
-                            <button className="submit-button" type="submit">Update Password</button>
-                            {passwordChangeMessage && <p style={{ color: "red" }}>{passwordChangeMessage}</p>}
-                        </form>
-
-                        <hr style={{ margin: "20px 0" }} />
-
-                        <h3>My Tickets</h3>
-                        <ul className="user-ticket-list">
-                            {tickets.map((t) => (
-                                <li key={t.id}>
-                                    <div>
-                                        <strong>Ref #{t.id}</strong> | {t.product} | {t.title} ({t.status})
+                        {userView === "tickets" && (
+                            <>
+                                {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                                    <h2 className="section-title">My Tickets</h2>
+                                </div>
+                                <form onSubmit={handleCreateTicket}>
+                                    <div className="form-group">
+                                        <label htmlFor="product">Product</label>
+                                        <input id="product" type="text" value={product} onChange={(e) => setProduct(e.target.value)} required />
                                     </div>
-                                    <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                </li>
-                            ))}
-                        </ul>
+                                    <div className="form-group">
+                                        <label htmlFor="title">Title</label>
+                                        <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="description">Description</label>
+                                        <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="category">Category</label>
+                                        <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                                            <option>General</option>
+                                            <option>Technical</option>
+                                            <option>Billing</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="priority">Priority</label>
+                                        <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                                            <option>Low</option>
+                                            <option>Medium</option>
+                                            <option>High</option>
+                                        </select>
+                                    </div>
+                                    <button className="submit-button" type="submit" disabled={loading}>{loading ? "Loading..." : "Submit Ticket"}</button>
+                                </form>
+                                <hr style={{ margin: "20px 0" }} />
+                                <h3>My Tickets</h3>
+                                <ul className="user-ticket-list">
+                                    {tickets.map((t) => (
+                                        <li key={t.id}>
+                                            <div>
+                                                <strong>Ref #{t.id}</strong> | {t.product} | {t.title} ({t.status})
+                                            </div>
+                                            <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                        
+                        {userView === "passwordChange" && (
+                            <div className="password-change-section">
+                                <h3>Change Password</h3>
+                                <form onSubmit={handlePasswordChange}>
+                                    {passwordChangeMessage && <p style={{ color: "red" }}>{passwordChangeMessage}</p>}
+                                    <div className="form-group">
+                                        <label htmlFor="currentPassword">Current Password</label>
+                                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="newPassword">New Password</label>
+                                        <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                                    </div>
+                                    <button className="submit-button" type="submit">Update Password</button>
+                                </form>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* ------------------- ADMIN VIEW ------------------- */}
                 {role === "Admin" && (
                     <>
-                        <h3>Admin Dashboard</h3>
-                        <div className="admin-controls">
-                            <button onClick={handleRegisterUser}>Register New User</button>
-                            <button className={filterStatus === "All" ? "active" : ""} onClick={() => setFilterStatus("All")}>All</button>
-                            <button className={filterStatus === "Open" ? "active" : ""} onClick={() => setFilterStatus("Open")}>Open</button>
-                            <button className={filterStatus === "In Progress" ? "active" : ""} onClick={() => setFilterStatus("In Progress")}>In Progress</button>
-                            <button className={filterStatus === "Closed" ? "active" : ""} onClick={() => setFilterStatus("Closed")}>Closed</button>
-                            <button className={filterStatus === "Ready for Collection" ? "active" : ""} onClick={() => setFilterStatus("Ready for Collection")}>Ready for Collection</button>
-                            <form onSubmit={handleAdminSearch}>
-                                <input
-                                    type="text"
-                                    placeholder="Search by product..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                                <button type="submit">Search</button>
-                            </form>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <h2 className="section-title">
+                                {adminView === "tickets" ? `Tickets (${allTickets.length})` : "User Management"}
+                            </h2>
+                            {adminView === "userManagement" && (
+                                <button 
+                                    onClick={() => setAdminView("tickets")}
+                                    style={{
+                                        padding: '8px 16px',
+                                        border: '2px solid #F25c54',
+                                        background: 'transparent',
+                                        color: '#F25c54',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontWeight: '500'
+                                    }}
+                                >
+                                    Back to Tickets
+                                </button>
+                            )}
                         </div>
 
-                        <table className="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Ref #</th>
-                                    <th>From</th>
-                                    <th>Title</th>
-                                    <th>Product</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {displayedTickets.map((t) => (
-                                    <tr key={t.id}>
-                                        <td>{t.id}</td>
-                                        <td>{t.createdBy}</td>
-                                        <td>{t.title}</td>
-                                        <td>{t.product}</td>
-                                        <td>{t.status}</td>
-                                        <td>
-                                            <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                            <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        {adminView === "tickets" && (
+                            <>
+                                <div className="admin-controls">
+                                    <button className={filterStatus === "All" ? "active" : ""} onClick={() => setFilterStatus("All")}>All</button>
+                                    <button className={filterStatus === "Open" ? "active" : ""} onClick={() => setFilterStatus("Open")}>Open</button>
+                                    <button className={filterStatus === "In Progress" ? "active" : ""} onClick={() => setFilterStatus("In Progress")}>In Progress</button>
+                                    <button className={filterStatus === "Closed" ? "active" : ""} onClick={() => setFilterStatus("Closed")}>Closed</button>
+                                    <button className={filterStatus === "Ready for Collection" ? "active" : ""} onClick={() => setFilterStatus("Ready for Collection")}>Ready for Collection</button>
+                                    <form onSubmit={handleAdminSearch}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search by product..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                        />
+                                        <button type="submit">Search</button>
+                                    </form>
+                                </div>
+                                <table className="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ref #</th>
+                                            <th>From</th>
+                                            <th>Title</th>
+                                            <th>Product</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayedTickets.map((t) => (
+                                            <tr key={t.id}>
+                                                <td>{t.id}</td>
+                                                <td>{t.createdBy}</td>
+                                                <td>{t.title}</td>
+                                                <td>{t.product}</td>
+                                                <td>{t.status}</td>
+                                                <td>
+                                                    <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                                    <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </>
+                        )}
+                        
+                        {adminView === "userManagement" && (
+                            <div className="user-management">
+                                <div className="user-count">
+                                    <strong>Total Users: {users.filter(user => user.role === "User").length}</strong>
+                                </div>
+                          
+                                <table className="users-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {users.filter(user => user.role === "User").map((user) => (
+                                            <tr key={user.email}>
+                                                <td>{user.email}</td>
+                                                <td>{user.role}</td>
+                                                <td>
+                                                    <button 
+                                                        className="danger-button"
+                                                        onClick={() => handleDeregisterUser(user.email)}
+                                                        title="Deregister user"
+                                                    >
+                                                        Deregister
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                          
+                                {users.filter(user => user.role === "User").length === 0 && (
+                                    <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
+                                        No users registered yet.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </main>
-
-            {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
-            {productHistoryPopup && role === "Admin" && (
-                <div className="popup-overlay">
-                    <div className="popup">
-                        <div className="popup-header">
-                            <h3>History for {historyProductName}</h3>
-                            <button className="close-button" onClick={() => setProductHistoryPopup(false)}>Close</button>
-                        </div>
-                        <ul className="history-list">
-                            {productHistory.map((h) => (
-                                <li key={h.id}>
-                                    <strong>Ticket Ref #{h.id}</strong> | from **{h.createdBy}**
-                                    <br />
-                                    <span>Title: {h.title}</span> | <span>Status: {h.status}</span>
-                                    <br />
-                                    <em>{h.description}</em>
-                                    <br />
-                                    <small>{new Date(h.createdAt).toLocaleString()}</small>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            )}
-
+            
             {/* ------------------- TICKET DETAILS POPUP (FOR BOTH USERS AND ADMINS) ------------------- */}
             {selectedTicket && (
                 <div className="popup-overlay">
                     <div className="popup">
-                        <h3>Ticket Ref #{selectedTicket.id}</h3>
+                        <div className="popup-header">
+                            <h3>Ticket Ref #{selectedTicket.id}</h3>
+                            <button className="close-button" onClick={closeTicketDetailsPopup}>&times;</button>
+                        </div>
                         <p><strong>Status:</strong> {selectedTicket.status}</p>
                         <p><strong>Title:</strong> {selectedTicket.title}</p>
                         <p><strong>Description:</strong> {selectedTicket.description}</p>
@@ -522,7 +799,7 @@ function App() {
                             <>
                                 <h4>Actions</h4>
                                 <button onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}>Mark In Progress</button>
-                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "Closed", prompt("Enter action taken:"))}>Close Ticket</button>
+                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "Closed", window.prompt("Enter action taken:"))}>Close Ticket</button>
                                 <button onClick={() => handleCommunicate(selectedTicket.id)}>Communicate</button>
                                 <button onClick={() => handleCollect(selectedTicket.id)}>Mark for Collection</button>
                             </>
@@ -541,7 +818,31 @@ function App() {
                                 <li>No messages yet.</li>
                             )}
                         </ul>
-                        <button onClick={closeTicketDetailsPopup}>Close</button>
+                    </div>
+                </div>
+            )}
+
+            {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
+            {productHistoryPopup && role === "Admin" && (
+                <div className="popup-overlay">
+                    <div className="popup">
+                        <div className="popup-header">
+                            <h3>History for {historyProductName}</h3>
+                            <button className="close-button" onClick={() => setProductHistoryPopup(false)}>&times;</button>
+                        </div>
+                        <ul className="history-list">
+                            {productHistory.map((h) => (
+                                <li key={h.id}>
+                                    <strong>Ticket Ref #{h.id}</strong> | from **{h.createdBy}**
+                                    <br />
+                                    <span>Title: {h.title}</span> | <span>Status: {h.status}</span>
+                                    <br />
+                                    <em>{h.description}</em>
+                                    <br />
+                                    <small>{new Date(h.createdAt).toLocaleString()}</small>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             )}
