@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
+import logo from "./images/logo-removebg-preview.png"
 
 function App() {
     const [message, setMessage] = useState("");
@@ -8,6 +9,7 @@ function App() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
+    const [loginTitle, setLoginTitle] = useState("Welcome to our Support Portal");
 
     // User state
     const [tickets, setTickets] = useState([]);
@@ -76,6 +78,13 @@ function App() {
 
             if (!res.ok) throw new Error("Invalid credentials");
             const data = await res.json();
+
+            // Set the login title based on the role
+            if (data.user.role === "Admin") {
+                setLoginTitle("Admin Login");
+            } else {
+                setLoginTitle("User Login");
+            }
 
             setIsLoggedIn(true);
             setRole(data.user.role);
@@ -173,14 +182,19 @@ function App() {
         }
     };
 
-    const openUserHistoryPopup = (productName) => {
+    // This function is now only for admin use
+    const openAdminProductHistoryPopup = async (productName) => {
         setHistoryProductName(productName);
         setProductHistoryPopup(true);
         setProductHistory([]);
 
-        fetch(`http://localhost:5000/tickets/${email}/product/${productName}`)
-            .then((res) => res.json())
-            .then((data) => setProductHistory(data));
+        const res = await fetch(`http://localhost:5000/admin/tickets/product/${productName}`);
+        const data = await res.json();
+        setProductHistory(data);
+    };
+
+    const openTicketDetailsPopup = async (ticket) => {
+        setSelectedTicket(ticket);
     };
 
     // ------------------- ADMIN -------------------
@@ -191,22 +205,8 @@ function App() {
         setSearchQuery(searchQuery);
     };
 
-    const openTicketDetailsPopup = async (ticket) => {
-        setSelectedTicket(ticket);
-    };
-
     const closeTicketDetailsPopup = () => {
         setSelectedTicket(null);
-    };
-
-    const openAdminProductHistoryPopup = async (productName) => {
-        setHistoryProductName(productName);
-        setProductHistoryPopup(true);
-        setProductHistory([]);
-
-        const res = await fetch(`http://localhost:5000/admin/tickets/product/${productName}`);
-        const data = await res.json();
-        setProductHistory(data);
     };
 
     const handleUpdateTicket = async (id, status, actionTaken) => {
@@ -247,174 +247,258 @@ function App() {
         }
     };
 
+    // App.js
     const handleRegisterUser = async () => {
         const userEmail = prompt("Enter new user's email:");
         if (!userEmail) return;
 
-        const res = await fetch("http://localhost:5000/admin/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: userEmail }),
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert(`User ${userEmail} registered successfully! An auto-generated password has been emailed to them.`);
-        } else {
-            alert(`Error: ${data.message}`);
+        // Generate a simple, random password
+        const autoPassword = Math.random().toString(36).slice(-8);
+
+        try {
+            const res = await fetch("http://localhost:5000/admin/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: userEmail, password: autoPassword }), // Add the password here
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded with an error: ${res.status} - ${errorText}`);
+            }
+
+            const data = await res.json();
+
+            if (data.success) {
+                alert(`User ${userEmail} registered successfully! An auto-generated password (${autoPassword}) has been emailed to them.`);
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (err) {
+            console.error("Failed to register user:", err);
+            alert("Registration failed. Please check the console for details.");
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        const userEmail = prompt("Please enter your email to reset your password:");
+        if (!userEmail) return;
+
+        try {
+            const res = await fetch("http://localhost:5000/forgot-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: userEmail }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (error) {
+            console.error("Forgot password request failed:", error);
+            alert("Could not connect to the server. Please try again later.");
         }
     };
 
     // ------------------- RENDER -------------------
     if (!isLoggedIn) {
         return (
-            <div style={{ padding: "20px", fontFamily: "Arial" }}>
-                <h1>Support Ticket System</h1>
-                <p>{message}</p>
-                <form onSubmit={handleLogin}>
-                    <h2>Login</h2>
-                    <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                    <br />
-                    <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                    <br />
-                    <button type="submit">Login</button>
-                    {loginError && <p style={{ color: "red" }}>{loginError}</p>}
-                </form>
+            <div className="login-page">
+                <div className="login-container">
+                    <h1 className="system-title">Support Ticket System</h1>
+                    <p className="system-subtitle">Manage your support requests efficiently.</p>
+                    <h2 className="login-title">{loginTitle}</h2>
+                    {loginError && <div className="error-message">{loginError}</div>}
+                    <form className="login-form" onSubmit={handleLogin}>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="email"
+                                placeholder="Enter your email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">✉️</span>
+                        </div>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">🔒</span>
+                        </div>
+                        <button className="login-button" type="submit">
+                            Sign In
+                        </button>
+                    </form>
+                    <div className="login-footer">
+                        <p>Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a></p>
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div style={{ padding: "20px", fontFamily: "Arial" }}>
-            <h1>Support Ticket System</h1>
-            <h2>Welcome, {email} ({role})</h2>
-            <button onClick={handleLogout}>Logout</button>
+        <div className="app-content">
+            <header className="header">
+                <img src={logo} alt="Company Logo" className="header-logo" />
+                <div className="header-user-info">
+                    <span>Welcome, {email} [{role}]</span>
+                    <button onClick={handleLogout}>Logout</button>
+                </div>
+            </header>
 
-            {/* ------------------- USER VIEW ------------------- */}
-            {role === "User" && (
-                <>
-                    {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
+            <main className="dashboard-container">
+                {/* ------------------- USER VIEW ------------------- */}
+                {role === "User" && (
+                    <div className="user-dashboard">
+                        {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
 
-                    <h3>Create Ticket</h3>
-                    <form onSubmit={handleCreateTicket}>
-                        <input placeholder="Product" value={product} onChange={(e) => setProduct(e.target.value)} required />
-                        <br />
-                        <input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-                        <br />
-                        <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} required />
-                        <br />
-                        <label>Category:
-                            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                                <option>General</option>
-                                <option>Technical</option>
-                                <option>Billing</option>
-                            </select>
-                        </label>
-                        <br />
-                        <label>Priority:
-                            <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                                <option>Low</option>
-                                <option>Medium</option>
-                                <option>High</option>
-                            </select>
-                        </label>
-                        <br />
-                        <button type="submit" disabled={loading}>{loading ? "Loading..." : "Submit Ticket"}</button>
-                    </form>
+                        <h3>Create Ticket</h3>
+                        <form onSubmit={handleCreateTicket}>
+                            <div className="form-group">
+                                <label htmlFor="product">Product</label>
+                                <input id="product" type="text" value={product} onChange={(e) => setProduct(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="title">Title</label>
+                                <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="description">Description</label>
+                                <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="category">Category</label>
+                                <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                                    <option>General</option>
+                                    <option>Technical</option>
+                                    <option>Billing</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="priority">Priority</label>
+                                <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                                    <option>Low</option>
+                                    <option>Medium</option>
+                                    <option>High</option>
+                                </select>
+                            </div>
+                            <button className="submit-button" type="submit" disabled={loading}>{loading ? "Loading..." : "Submit Ticket"}</button>
+                        </form>
 
-                    <hr style={{ margin: "20px 0" }} />
+                        <hr style={{ margin: "20px 0" }} />
 
-                    <h3>Change Password</h3>
-                    <form onSubmit={handlePasswordChange}>
-                        <input type="password" placeholder="Current Password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-                        <br />
-                        <input type="password" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                        <br />
-                        <button type="submit">Update Password</button>
-                        {passwordChangeMessage && <p style={{ color: "red" }}>{passwordChangeMessage}</p>}
-                    </form>
+                        <h3>Change Password</h3>
+                        <form onSubmit={handlePasswordChange}>
+                            <div className="form-group">
+                                <label htmlFor="currentPassword">Current Password</label>
+                                <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="newPassword">New Password</label>
+                                <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                            </div>
+                            <button className="submit-button" type="submit">Update Password</button>
+                            {passwordChangeMessage && <p style={{ color: "red" }}>{passwordChangeMessage}</p>}
+                        </form>
 
-                    <hr style={{ margin: "20px 0" }} />
+                        <hr style={{ margin: "20px 0" }} />
 
-                    <h3>My Tickets</h3>
-                    <ul>
-                        {tickets.map((t) => (
-                            <li key={t.id}>
-                                <strong>Ref #{t.id}</strong> | {t.product} | {t.title} ({t.status})
-                                <button onClick={() => openUserHistoryPopup(t.product)}>View History</button>
-                            </li>
-                        ))}
-                    </ul>
-                </>
-            )}
-
-            {/* ------------------- ADMIN VIEW ------------------- */}
-            {role === "Admin" && (
-                <>
-                    <h3>Admin Dashboard</h3>
-                    <button onClick={handleRegisterUser}>Register New User</button>
-                    <div>
-                        <button onClick={() => setFilterStatus("All")}>All</button>
-                        <button onClick={() => setFilterStatus("Open")}>Open</button>
-                        <button onClick={() => setFilterStatus("In Progress")}>In Progress</button>
-                        <button onClick={() => setFilterStatus("Closed")}>Closed</button>
-                        <button onClick={() => setFilterStatus("Ready for Collection")}>Ready for Collection</button>
-                    </div>
-                    <form onSubmit={handleAdminSearch} style={{ marginTop: "10px" }}>
-                        <input
-                            type="text"
-                            placeholder="Search by product..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        <button type="submit">Search</button>
-                    </form>
-
-                    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "20px" }}>
-                        <thead>
-                            <tr style={{ backgroundColor: "#f2f2f2" }}>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>Ref #</th>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>From</th>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>Title</th>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>Product</th>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>Status</th>
-                                <th style={{ padding: "8px", border: "1px solid #ddd" }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {displayedTickets.map((t) => (
-                                <tr key={t.id}>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>{t.id}</td>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>{t.createdBy}</td>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>{t.title}</td>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>{t.product}</td>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>{t.status}</td>
-                                    <td style={{ padding: "8px", border: "1px solid #ddd" }}>
-                                        <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                        <button onClick={() => openAdminProductHistoryPopup(t.product)}>Product History</button>
-                                    </td>
-                                </tr>
+                        <h3>My Tickets</h3>
+                        <ul className="user-ticket-list">
+                            {tickets.map((t) => (
+                                <li key={t.id}>
+                                    <div>
+                                        <strong>Ref #{t.id}</strong> | {t.product} | {t.title} ({t.status})
+                                    </div>
+                                    <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                </li>
                             ))}
-                        </tbody>
-                    </table>
-                </>
-            )}
+                        </ul>
+                    </div>
+                )}
 
-            {/* ------------------- USER/ADMIN HISTORY POPUP ------------------- */}
-            {productHistoryPopup && (
+                {/* ------------------- ADMIN VIEW ------------------- */}
+                {role === "Admin" && (
+                    <>
+                        <h3>Admin Dashboard</h3>
+                        <div className="admin-controls">
+                            <button onClick={handleRegisterUser}>Register New User</button>
+                            <button className={filterStatus === "All" ? "active" : ""} onClick={() => setFilterStatus("All")}>All</button>
+                            <button className={filterStatus === "Open" ? "active" : ""} onClick={() => setFilterStatus("Open")}>Open</button>
+                            <button className={filterStatus === "In Progress" ? "active" : ""} onClick={() => setFilterStatus("In Progress")}>In Progress</button>
+                            <button className={filterStatus === "Closed" ? "active" : ""} onClick={() => setFilterStatus("Closed")}>Closed</button>
+                            <button className={filterStatus === "Ready for Collection" ? "active" : ""} onClick={() => setFilterStatus("Ready for Collection")}>Ready for Collection</button>
+                            <form onSubmit={handleAdminSearch}>
+                                <input
+                                    type="text"
+                                    placeholder="Search by product..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                <button type="submit">Search</button>
+                            </form>
+                        </div>
+
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Ref #</th>
+                                    <th>From</th>
+                                    <th>Title</th>
+                                    <th>Product</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {displayedTickets.map((t) => (
+                                    <tr key={t.id}>
+                                        <td>{t.id}</td>
+                                        <td>{t.createdBy}</td>
+                                        <td>{t.title}</td>
+                                        <td>{t.product}</td>
+                                        <td>{t.status}</td>
+                                        <td>
+                                            <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                            <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </>
+                )}
+            </main>
+
+            {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
+            {productHistoryPopup && role === "Admin" && (
                 <div className="popup-overlay">
                     <div className="popup">
-                        <h3>History for {historyProductName}</h3>
-                        <button onClick={() => setProductHistoryPopup(false)}>Close</button>
-                        <ul>
+                        <div className="popup-header">
+                            <h3>History for {historyProductName}</h3>
+                            <button className="close-button" onClick={() => setProductHistoryPopup(false)}>Close</button>
+                        </div>
+                        <ul className="history-list">
                             {productHistory.map((h) => (
                                 <li key={h.id}>
-                                    <strong>Ref #{h.id}</strong> | {h.title} | {h.status}
+                                    <strong>Ticket Ref #{h.id}</strong> | from **{h.createdBy}**
+                                    <br />
+                                    <span>Title: {h.title}</span> | <span>Status: {h.status}</span>
                                     <br />
                                     <em>{h.description}</em>
                                     <br />
                                     <small>{new Date(h.createdAt).toLocaleString()}</small>
-                                    <br />
-                                    <button onClick={() => openTicketDetailsPopup(h)}>View Ticket Details</button>
                                 </li>
                             ))}
                         </ul>
@@ -422,7 +506,7 @@ function App() {
                 </div>
             )}
 
-            {/* ------------------- ADMIN TICKET DETAILS POPUP ------------------- */}
+            {/* ------------------- TICKET DETAILS POPUP (FOR BOTH USERS AND ADMINS) ------------------- */}
             {selectedTicket && (
                 <div className="popup-overlay">
                     <div className="popup">
@@ -433,11 +517,16 @@ function App() {
                         <p><strong>Product:</strong> {selectedTicket.product}</p>
                         <p><strong>Created By:</strong> {selectedTicket.createdBy}</p>
 
-                        <h4>Actions</h4>
-                        <button onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}>Mark In Progress</button>
-                        <button onClick={() => handleUpdateTicket(selectedTicket.id, "Closed", prompt("Enter action taken:"))}>Close Ticket</button>
-                        <button onClick={() => handleCommunicate(selectedTicket.id)}>Communicate</button>
-                        <button onClick={() => handleCollect(selectedTicket.id)}>Mark for Collection</button>
+                        {/* Conditionally render actions for admin only */}
+                        {role === "Admin" && (
+                            <>
+                                <h4>Actions</h4>
+                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}>Mark In Progress</button>
+                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "Closed", prompt("Enter action taken:"))}>Close Ticket</button>
+                                <button onClick={() => handleCommunicate(selectedTicket.id)}>Communicate</button>
+                                <button onClick={() => handleCollect(selectedTicket.id)}>Mark for Collection</button>
+                            </>
+                        )}
 
                         <h4>Communication History</h4>
                         <ul>
@@ -456,6 +545,10 @@ function App() {
                     </div>
                 </div>
             )}
+
+            <footer className="footer">
+                <p>&copy; 2025 Capaciti. All Rights Reserved.</p>
+            </footer>
         </div>
     );
 }
