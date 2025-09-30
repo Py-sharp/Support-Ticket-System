@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
+// Add your live backend URL here (Remember to replace this with your actual Render URL later)
+const API_BASE_URL = "http://localhost:5000";
+
 function App() {
     const [message, setMessage] = useState("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -64,7 +67,7 @@ function App() {
 
 
     useEffect(() => {
-        fetch("http://localhost:5000/")
+        fetch(`${API_BASE_URL}/`)
             .then((res) => res.text())
             .then((data) => setMessage(data));
     }, []);
@@ -100,8 +103,8 @@ function App() {
 
         const adminEmail = "kgomotsosele80@gmail.com";
         const loginUrl = email === adminEmail
-            ? "http://localhost:5000/admin/login"
-            : "http://localhost:5000/login";
+            ? `${API_BASE_URL}/admin/login`
+            : `${API_BASE_URL}/login`;
 
         try {
             const res = await fetch(loginUrl, {
@@ -135,13 +138,13 @@ function App() {
     };
 
     const fetchTickets = (userEmail) => {
-        fetch(`http://localhost:5000/tickets/${userEmail}`)
+        fetch(`${API_BASE_URL}/tickets/${userEmail}`)
             .then((res) => res.json())
             .then((data) => setTickets(data));
     };
 
     const fetchAllTickets = () => {
-        fetch(`http://localhost:5000/admin/tickets`)
+        fetch(`${API_BASE_URL}/admin/tickets`)
             .then((res) => res.json())
             .then((data) => {
                 setAllTickets(data);
@@ -149,7 +152,7 @@ function App() {
     };
 
     const fetchUsers = () => {
-        fetch("http://localhost:5000/admin/users")
+        fetch(`${API_BASE_URL}/admin/users`)
             .then((res) => res.json())
             .then((data) => setUsers(data));
     };
@@ -187,7 +190,7 @@ function App() {
             return;
         }
 
-        const res = await fetch("http://localhost:5000/user/update-password", {
+        const res = await fetch(`${API_BASE_URL}/user/update-password`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, currentPassword, newPassword }),
@@ -208,7 +211,7 @@ function App() {
         e.preventDefault();
         setLoading(true);
 
-        const res = await fetch("http://localhost:5000/tickets", {
+        const res = await fetch(`${API_BASE_URL}/tickets`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ title, description, category, priority, email, product }),
@@ -236,7 +239,7 @@ function App() {
         try {
             // CRITICAL FIX: Encode the product name for the URL to handle spaces/special characters
             const encodedProductName = encodeURIComponent(productName);
-            const res = await fetch(`http://localhost:5000/admin/tickets/product/${encodedProductName}`);
+            const res = await fetch(`${API_BASE_URL}/admin/tickets/product/${encodedProductName}`);
 
             if (!res.ok) {
                 // Throw error if response status is not 2xx
@@ -259,7 +262,7 @@ function App() {
     const openTicketDetailsPopup = async (ticket) => {
         // For Admin, it's better to fetch the latest details
         if (role === "Admin" && ticket.id) {
-            const res = await fetch(`http://localhost:5000/ticket/${ticket.id}`);
+            const res = await fetch(`${API_BASE_URL}/ticket/${ticket.id}`);
             if (res.ok) {
                 const latestTicket = await res.json();
                 setSelectedTicket(latestTicket);
@@ -291,14 +294,14 @@ function App() {
             }
         }
 
-        await fetch(`http://localhost:5000/admin/tickets/${id}`, {
+        await fetch(`${API_BASE_URL}/admin/tickets/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status, actionTaken: finalActionTaken }),
         });
         fetchAllTickets(); // Reloads all tickets, triggering the filtering
         if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`http://localhost:5000/ticket/${id}`);
+            const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
         }
@@ -307,14 +310,14 @@ function App() {
     const handleCommunicate = async (id) => {
         const message = window.prompt("Enter custom message to user:");
         if (!message) return;
-        await fetch(`http://localhost:5000/admin/tickets/${id}/message`, {
+        await fetch(`${API_BASE_URL}/admin/tickets/${id}/message`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message }),
         });
         fetchAllTickets();
         if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`http://localhost:5000/ticket/${id}`);
+            const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
         }
@@ -327,7 +330,7 @@ function App() {
         const autoPassword = Math.random().toString(36).slice(-8);
 
         try {
-            const res = await fetch("http://localhost:5000/admin/register", {
+            const res = await fetch(`${API_BASE_URL}/admin/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: userEmail, password: autoPassword }),
@@ -358,7 +361,7 @@ function App() {
         }
 
         try {
-            const res = await fetch(`http://localhost:5000/admin/users/${userEmail}`, {
+            const res = await fetch(`${API_BASE_URL}/admin/users/${userEmail}`, {
                 method: "DELETE",
             });
 
@@ -382,28 +385,7 @@ function App() {
         }
     };
 
-    const handleForgotPassword = async () => {
-        const userEmail = window.prompt("Please enter your email to reset your password:");
-        if (!userEmail) return;
-
-        try {
-            const res = await fetch("http://localhost:5000/forgot-password", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: userEmail }),
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-                window.alert(data.message);
-            } else {
-                window.alert(`Error: ${data.message}`);
-            }
-        } catch (error) {
-            console.error("Forgot password request failed:", error);
-            window.alert("Could not connect to the server. Please try again later.");
-        }
-    };
+    // THE handleForgotPassword FUNCTION WAS REMOVED HERE
 
     // ------------------- RENDER -------------------
     if (!isLoggedIn) {
@@ -442,7 +424,8 @@ function App() {
                         </button>
                     </form>
                     <div className="login-footer">
-                        <p>Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a></p>
+                        {/* REMOVED: Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a> */}
+                        <p style={{ visibility: 'hidden', height: '0px' }}>&nbsp;</p> {/* Maintain layout spacing */}
                     </div>
                 </div>
             </div>
@@ -995,6 +978,5 @@ function App() {
         </div>
     );
 }
-//checkinggit 
 
 export default App;
