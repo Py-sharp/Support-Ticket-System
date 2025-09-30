@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
-// Add your live backend URL here (Remember to replace this with your actual Render URL later)
+// UPDATED: Using the Render deployment URL for all API calls
 const API_BASE_URL = "https://support-ticket-system-igce.onrender.com";
 
 function App() {
@@ -13,12 +13,6 @@ function App() {
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
     const [loginTitle, setLoginTitle] = useState("Welcome to our Support Portal");
-
-    // NEW STATES FOR REGISTRATION (Temporary fix for password hashing)
-    const [regEmail, setRegEmail] = useState("");
-    const [regPassword, setRegPassword] = useState("");
-    const [regConfirmation, setRegConfirmation] = useState("");
-    const [isRegistering, setIsRegistering] = useState(false); // Toggle view
 
     // User state
     const [tickets, setTickets] = useState([]);
@@ -73,6 +67,7 @@ function App() {
 
 
     useEffect(() => {
+        // FETCH CHANGE 1
         fetch(`${API_BASE_URL}/`)
             .then((res) => res.text())
             .then((data) => setMessage(data));
@@ -109,6 +104,7 @@ function App() {
 
         const adminEmail = "kgomotsosele80@gmail.com";
         const loginUrl = email === adminEmail
+            // FETCH CHANGE 2 & 3
             ? `${API_BASE_URL}/admin/login`
             : `${API_BASE_URL}/login`;
 
@@ -144,12 +140,14 @@ function App() {
     };
 
     const fetchTickets = (userEmail) => {
+        // FETCH CHANGE 4
         fetch(`${API_BASE_URL}/tickets/${userEmail}`)
             .then((res) => res.json())
             .then((data) => setTickets(data));
     };
 
     const fetchAllTickets = () => {
+        // FETCH CHANGE 5
         fetch(`${API_BASE_URL}/admin/tickets`)
             .then((res) => res.json())
             .then((data) => {
@@ -158,6 +156,7 @@ function App() {
     };
 
     const fetchUsers = () => {
+        // FETCH CHANGE 6
         fetch(`${API_BASE_URL}/admin/users`)
             .then((res) => res.json())
             .then((data) => setUsers(data));
@@ -185,11 +184,6 @@ function App() {
         setShowQuickActions(false); // Reset user quick actions
         setUserView("tickets"); // Reset user view
         setAdminView("tickets"); // Reset admin view
-        // NEW: Reset temporary registration states
-        setRegEmail("");
-        setRegPassword("");
-        setRegConfirmation("");
-        setIsRegistering(false);
     };
 
     const handlePasswordChange = async (e) => {
@@ -201,6 +195,7 @@ function App() {
             return;
         }
 
+        // FETCH CHANGE 7
         const res = await fetch(`${API_BASE_URL}/user/update-password`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -217,41 +212,12 @@ function App() {
         }
     };
 
-    // ------------------- LOGIN/REGISTRATION TEMP FIX -------------------
-
-    // NEW: Function to handle temporary registration
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setRegConfirmation("");
-        setLoginError(""); // Clear login errors when registering
-
-        if (regPassword.length < 4) {
-             setRegConfirmation("❌ Password must be at least 4 characters.");
-             return;
-        }
-
-        const res = await fetch(`${API_BASE_URL}/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: regEmail, password: regPassword }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-            setRegConfirmation("✅ Registration successful! The password hash is now in Firestore. You can now copy it. Go back to Login.");
-            setRegEmail("");
-            setRegPassword("");
-        } else {
-            setRegConfirmation(`❌ Registration failed: ${data.message}`);
-        }
-    };
-
     // ------------------- USER -------------------
     const handleCreateTicket = async (e) => {
         e.preventDefault();
         setLoading(true);
 
+        // FETCH CHANGE 8
         const res = await fetch(`${API_BASE_URL}/tickets`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -280,6 +246,7 @@ function App() {
         try {
             // CRITICAL FIX: Encode the product name for the URL to handle spaces/special characters
             const encodedProductName = encodeURIComponent(productName);
+            // FETCH CHANGE 9
             const res = await fetch(`${API_BASE_URL}/admin/tickets/product/${encodedProductName}`);
 
             if (!res.ok) {
@@ -303,6 +270,7 @@ function App() {
     const openTicketDetailsPopup = async (ticket) => {
         // For Admin, it's better to fetch the latest details
         if (role === "Admin" && ticket.id) {
+            // FETCH CHANGE 10
             const res = await fetch(`${API_BASE_URL}/ticket/${ticket.id}`);
             if (res.ok) {
                 const latestTicket = await res.json();
@@ -335,6 +303,7 @@ function App() {
             }
         }
 
+        // FETCH CHANGE 11
         await fetch(`${API_BASE_URL}/admin/tickets/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -342,6 +311,7 @@ function App() {
         });
         fetchAllTickets(); // Reloads all tickets, triggering the filtering
         if (selectedTicket && selectedTicket.id === id) {
+            // FETCH CHANGE 12
             const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
@@ -351,6 +321,7 @@ function App() {
     const handleCommunicate = async (id) => {
         const message = window.prompt("Enter custom message to user:");
         if (!message) return;
+        // FETCH CHANGE 13
         await fetch(`${API_BASE_URL}/admin/tickets/${id}/message`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -358,6 +329,7 @@ function App() {
         });
         fetchAllTickets();
         if (selectedTicket && selectedTicket.id === id) {
+            // FETCH CHANGE 14
             const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
@@ -371,6 +343,7 @@ function App() {
         const autoPassword = Math.random().toString(36).slice(-8);
 
         try {
+            // FETCH CHANGE 15
             const res = await fetch(`${API_BASE_URL}/admin/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -402,6 +375,7 @@ function App() {
         }
 
         try {
+            // FETCH CHANGE 16
             const res = await fetch(`${API_BASE_URL}/admin/users/${userEmail}`, {
                 method: "DELETE",
             });
@@ -426,7 +400,7 @@ function App() {
         }
     };
 
-    // THE handleForgotPassword FUNCTION WAS REMOVED HERE
+    // REMOVED: handleForgotPassword function removed as requested.
 
     // ------------------- RENDER -------------------
     if (!isLoggedIn) {
@@ -435,98 +409,36 @@ function App() {
                 <div className="login-container">
                     <h1 className="system-title">Support Ticket System</h1>
                     <p className="system-subtitle">Manage your support requests efficiently.</p>
-                    {/* UPDATED: Title changes based on registration state */}
-                    <h2 className="login-title">{isRegistering ? "Register New User (Admin Fix)" : loginTitle}</h2>
-
-                    {/* UPDATED: Show Login/Registration messages */}
-                    {!isRegistering && loginError && <div className="error-message">{loginError}</div>}
-                    {regConfirmation && <div className={`message ${regConfirmation.startsWith('❌') ? 'error-message' : 'success-message'}`}>{regConfirmation}</div>}
-
-
-                    {/* --- Login Form (Displayed when NOT registering) --- */}
-                    {!isRegistering && (
-                        <form className="login-form" onSubmit={handleLogin}>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="Enter your email address"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Sign In
-                            </button>
-                        </form>
-                    )}
-
-                    {/* --- Registration Form (Displayed when registering) --- */}
-                    {isRegistering && (
-                        <form className="login-form" onSubmit={handleRegister}>
-                            <p style={{ color: 'red', textAlign: 'center', marginBottom: '15px' }}>
-                                **USE THIS TO GENERATE A HASHED PASSWORD ONLY**
-                            </p>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="New User Email (e.g., temp@test.com)"
-                                    value={regEmail}
-                                    onChange={(e) => setRegEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Password to hash (e.g., admin123)"
-                                    value={regPassword}
-                                    onChange={(e) => setRegPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Register and Get Hash
-                            </button>
-                        </form>
-                    )}
-
-                    <div className="login-footer">
-                        <button
-                            className="toggle-button"
-                            onClick={() => {
-                                setIsRegistering(!isRegistering);
-                                setLoginError("");
-                                setRegConfirmation("");
-                            }}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#007bff',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                            }}
-                        >
-                            {isRegistering ? "← Back to Login" : "Fix Admin Login? Register/Get Hash"}
+                    <h2 className="login-title">{loginTitle}</h2>
+                    {loginError && <div className="error-message">{loginError}</div>}
+                    <form className="login-form" onSubmit={handleLogin}>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="email"
+                                placeholder="Enter your email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">✉️</span>
+                        </div>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">🔒</span>
+                        </div>
+                        <button className="login-button" type="submit">
+                            Sign In
                         </button>
-                    </div>
+                    </form>
+                    {/* REMOVED: The login-footer div with the forgot password link is removed */}
                 </div>
             </div>
         );
