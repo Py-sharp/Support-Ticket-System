@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
-// Add your live backend URL here (Remember to replace this with your actual Render URL later)
-const API_BASE_URL = "https://support-ticket-system-igce.onrender.com/";
+
+const API_BASE_URL = "const API_BASE_URL = "https://support-ticket-system-igce.onrender.com"; 
+
 
 function App() {
     const [message, setMessage] = useState("");
@@ -13,12 +14,6 @@ function App() {
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
     const [loginTitle, setLoginTitle] = useState("Welcome to our Support Portal");
-
-    // NEW STATES FOR REGISTRATION (Temporary fix for password hashing)
-    const [regEmail, setRegEmail] = useState("");
-    const [regPassword, setRegPassword] = useState("");
-    const [regConfirmation, setRegConfirmation] = useState("");
-    const [isRegistering, setIsRegistering] = useState(false); // Toggle view
 
     // User state
     const [tickets, setTickets] = useState([]);
@@ -185,11 +180,6 @@ function App() {
         setShowQuickActions(false); // Reset user quick actions
         setUserView("tickets"); // Reset user view
         setAdminView("tickets"); // Reset admin view
-        // NEW: Reset temporary registration states
-        setRegEmail("");
-        setRegPassword("");
-        setRegConfirmation("");
-        setIsRegistering(false);
     };
 
     const handlePasswordChange = async (e) => {
@@ -214,36 +204,6 @@ function App() {
             setPassword(newPassword);
         } else {
             setPasswordChangeMessage(data.message);
-        }
-    };
-
-    // ------------------- LOGIN/REGISTRATION TEMP FIX -------------------
-
-    // NEW: Function to handle temporary registration
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setRegConfirmation("");
-        setLoginError(""); // Clear login errors when registering
-
-        if (regPassword.length < 4) {
-             setRegConfirmation("❌ Password must be at least 4 characters.");
-             return;
-        }
-
-        const res = await fetch(`${API_BASE_URL}/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: regEmail, password: regPassword }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-            setRegConfirmation("✅ Registration successful! The password hash is now in Firestore. You can now copy it. Go back to Login.");
-            setRegEmail("");
-            setRegPassword("");
-        } else {
-            setRegConfirmation(`❌ Registration failed: ${data.message}`);
         }
     };
 
@@ -435,97 +395,38 @@ function App() {
                 <div className="login-container">
                     <h1 className="system-title">Support Ticket System</h1>
                     <p className="system-subtitle">Manage your support requests efficiently.</p>
-                    {/* UPDATED: Title changes based on registration state */}
-                    <h2 className="login-title">{isRegistering ? "Register New User (Admin Fix)" : loginTitle}</h2>
-
-                    {/* UPDATED: Show Login/Registration messages */}
-                    {!isRegistering && loginError && <div className="error-message">{loginError}</div>}
-                    {regConfirmation && <div className={`message ${regConfirmation.startsWith('❌') ? 'error-message' : 'success-message'}`}>{regConfirmation}</div>}
-
-
-                    {/* --- Login Form (Displayed when NOT registering) --- */}
-                    {!isRegistering && (
-                        <form className="login-form" onSubmit={handleLogin}>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="Enter your email address"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Sign In
-                            </button>
-                        </form>
-                    )}
-
-                    {/* --- Registration Form (Displayed when registering) --- */}
-                    {isRegistering && (
-                        <form className="login-form" onSubmit={handleRegister}>
-                            <p style={{ color: 'red', textAlign: 'center', marginBottom: '15px' }}>
-                                **USE THIS TO GENERATE A HASHED PASSWORD ONLY**
-                            </p>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="New User Email (e.g., temp@test.com)"
-                                    value={regEmail}
-                                    onChange={(e) => setRegEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Password to hash (e.g., admin123)"
-                                    value={regPassword}
-                                    onChange={(e) => setRegPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Register and Get Hash
-                            </button>
-                        </form>
-                    )}
-
-                    <div className="login-footer">
-                        <button
-                            className="toggle-button"
-                            onClick={() => {
-                                setIsRegistering(!isRegistering);
-                                setLoginError("");
-                                setRegConfirmation("");
-                            }}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#007bff',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                            }}
-                        >
-                            {isRegistering ? "← Back to Login" : "Fix Admin Login? Register/Get Hash"}
+                    <h2 className="login-title">{loginTitle}</h2>
+                    {loginError && <div className="error-message">{loginError}</div>}
+                    <form className="login-form" onSubmit={handleLogin}>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="email"
+                                placeholder="Enter your email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">✉️</span>
+                        </div>
+                        <div className="form-group">
+                            <input
+                                className="form-input"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                            <span className="form-input-icon">🔒</span>
+                        </div>
+                        <button className="login-button" type="submit">
+                            Sign In
                         </button>
+                    </form>
+                    <div className="login-footer">
+                        {/* REMOVED: Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a> */}
+                        <p style={{ visibility: 'hidden', height: '0px' }}>&nbsp;</p> {/* Maintain layout spacing */}
                     </div>
                 </div>
             </div>
