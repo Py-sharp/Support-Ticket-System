@@ -37,22 +37,6 @@ Email Service: Gmail SMTP
 
 Styling: Basic CSS (custom spinner)
 
-📂 Project Structure
-Support-Ticket-System/
-│── client/                 # React frontend
-│   ├── src/
-│   │   ├── App.js          # Main React app
-│   │   ├── App.css         # Styling (spinner, UI tweaks)
-│   │   └── index.js        # Entry point
-│   └── package.json        # React dependencies
-│
-│── server/                 # Node.js backend
-│   ├── index.js            # Express server & routes
-│   ├── package.json        # Backend dependencies
-│   └── config.json         # Email configuration
-│
-│── README.md               # Project documentation
-
 ⚙️ Installation
 1. Clone the repo
 git clone https://github.com/your-username/support-ticket-system.git
