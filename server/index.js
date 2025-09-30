@@ -5,9 +5,9 @@ const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
 
 // ----------------------------------------------------
-// FIREBASE INITIALIZATION: Use SERVICE_ACCOUNT_KEY ENV VAR
+// FIREBASE INITIALIZATION: Use FIREBASE_SERVICE_ACCOUNT ENV VAR
 // ----------------------------------------------------
-const serviceAccountJson = process.env.SERVICE_ACCOUNT_KEY;
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 
 if (serviceAccountJson) {
     try {
@@ -15,29 +15,31 @@ if (serviceAccountJson) {
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
         });
-        console.log("✅ Firebase initialized using SERVICE_ACCOUNT_KEY environment variable.");
+        console.log("✅ Firebase initialized using FIREBASE_SERVICE_ACCOUNT.");
     } catch (e) {
-        console.error("❌ FATAL: Failed to parse SERVICE_ACCOUNT_KEY JSON:", e);
+        console.error("❌ FATAL: Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", e);
     }
 } else {
-    // This warning/error will show if SERVICE_ACCOUNT_KEY isn't set on Render
-    console.error("❌ FATAL: SERVICE_ACCOUNT_KEY environment variable is missing! Server cannot run without Firebase.");
+    // This will run if the ENV var is missing on Render
+    console.error("❌ FATAL: FIREBASE_SERVICE_ACCOUNT environment variable is missing! Server cannot run without Firebase connection.");
 }
 
 const db = admin.firestore();
 const app = express();
-// Use dynamic port provided by hosting environment (Render), fall back to 5000 for local dev
-const port = process.env.PORT || 5000;
+// ----------------------------------------------------
+// DYNAMIC PORT: Use port provided by Render (process.env.PORT)
+// ----------------------------------------------------
+const port = process.env.PORT || 5000; // Use environment port, default to 5000
 
 app.use(cors());
 app.use(express.json());
 
 // ---------------------------
-// EMAIL CONFIG: Use EMAIL_USERNAME and EMAIL_PASSWORD ENV VARS
+// EMAIL CONFIG: Use EMAIL and PASSWORD ENV VARS
 // ---------------------------
 const emailConfig = {
-    Username: process.env.EMAIL_USERNAME, // Admin sender
-    Password: process.env.EMAIL_PASSWORD, // Gmail App Password
+    Username: process.env.EMAIL,     // Read from Render ENV var
+    Password: process.env.PASSWORD,  // Read from Render ENV var
     SmtpServer: "smtp.gmail.com",
     Port: 587,
 };
@@ -169,6 +171,7 @@ app.post("/tickets", async (req, res) => {
         createdBy: email,
         createdAt: new Date().toISOString(),
         messages: [],
+        // actionTaken field is added here for consistency, though it's typically set on update
         actionTaken: "",
     };
 
@@ -197,32 +200,34 @@ app.get("/admin/tickets", async (req, res) => {
     res.json(snapshot.docs.map((d) => d.data()));
 });
 
-// ADMIN: GET SINGLE TICKET
+// ADMIN: GET SINGLE TICKET (Needed for Admin communication update logic in App.js)
 app.get("/ticket/:id", async (req, res) => {
     const doc = await ticketsRef.doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ success: false, message: "Ticket not found" });
     res.json(doc.data());
 });
 
-// ADMIN: GET TICKETS BY PRODUCT (Requires a composite index in Firebase!)
+// ADMIN: GET TICKETS BY PRODUCT (For history feature: What was the problem/date/fix)
 app.get("/admin/tickets/product/:productName", async (req, res) => {
     const { productName } = req.params;
-    
-    // NOTE: This query requires a composite index on (product ASC, createdAt DESC) in Firestore!
+    // Query for all tickets for the specified product, ordered by creation date (newest first)
     const snapshot = await ticketsRef
         .where("product", "==", decodeURIComponent(productName))
         .orderBy("createdAt", "desc")
         .get();
 
+    // The data() contains: title, description (the problem), status, createdBy, createdAt (date booked), and actionTaken (the fix)
     res.json(snapshot.docs.map((d) => d.data()));
 });
 
 // ADMIN: UPDATE TICKET STATUS
 app.put("/admin/tickets/:id", async (req, res) => {
     const { id } = req.params;
+    // 'actionTaken' is what you did to fix the problem.
     const { status, actionTaken } = req.body;
     const doc = ticketsRef.doc(id);
 
+    // Ensure actionTaken is saved on update
     await doc.update({ status, actionTaken });
 
     const updated = (await doc.get()).data();
