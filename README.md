@@ -5,8 +5,7 @@ Users can log in, submit support tickets, view their ticket history per product,
 
 🚀 Features
 
-🔐 User login (hardcoded for now, can be extended with DB later)
-
+🔐 User login 
 📝 Create support tickets with:
 
 Product name
@@ -31,7 +30,7 @@ Priority (Low, Medium, High)
 
 Frontend: React (CRA), Fetch API
 
-Backend: Node.js, Express.js, Nodemailer
+Backend: Node.js, Express.js, Nodemailer, Firebase
 
 Email Service: Gmail SMTP
 
@@ -39,7 +38,7 @@ Styling: Basic CSS (custom spinner)
 
 ⚙️ Installation
 1. Clone the repo
-git clone https://github.com/your-username/support-ticket-system.git
+git clone https://github.com/Py-sharp/Support-Ticket-System.git
 cd support-ticket-system
 
 2. Setup backend
@@ -53,7 +52,7 @@ node index.js
 
 
 Server should start at:
-👉 http://localhost:5000
+👉 http://localhost:3000
 
 3. Setup frontend
 cd ../client
