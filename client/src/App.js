@@ -5,7 +5,7 @@ import logo from "./images/logo-removebg-preview.png";
 function App() {
 
     const BACKEND_URL = 'https://support-ticket-system-igce.onrender.com/'; 
-    const ADMIN_PASSWORD = 'admin123';
+   
 
     const [message, setMessage] = useState("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
