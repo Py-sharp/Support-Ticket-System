@@ -1,28 +1,43 @@
-﻿// server/index.js
+// server/index.js
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./serviceAccountKey.json");
+// ----------------------------------------------------
+// FIREBASE INITIALIZATION: Use SERVICE_ACCOUNT_KEY ENV VAR
+// ----------------------------------------------------
+const serviceAccountJson = process.env.SERVICE_ACCOUNT_KEY;
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-});
+if (serviceAccountJson) {
+    try {
+        const serviceAccount = JSON.parse(serviceAccountJson);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+        });
+        console.log("✅ Firebase initialized using SERVICE_ACCOUNT_KEY environment variable.");
+    } catch (e) {
+        console.error("❌ FATAL: Failed to parse SERVICE_ACCOUNT_KEY JSON:", e);
+    }
+} else {
+    // This warning/error will show if SERVICE_ACCOUNT_KEY isn't set on Render
+    console.error("❌ FATAL: SERVICE_ACCOUNT_KEY environment variable is missing! Server cannot run without Firebase.");
+}
 
 const db = admin.firestore();
 const app = express();
-const port = 5000;
+// Use dynamic port provided by hosting environment (Render), fall back to 5000 for local dev
+const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
 // ---------------------------
-// EMAIL CONFIG
+// EMAIL CONFIG: Use EMAIL_USERNAME and EMAIL_PASSWORD ENV VARS
 // ---------------------------
 const emailConfig = {
-    Username: "kgomotsosele80@gmail.com", // Admin sender
-    Password: "ensfuzffghnszohk",        // Gmail App Password
+    Username: process.env.EMAIL_USERNAME, // Admin sender
+    Password: process.env.EMAIL_PASSWORD, // Gmail App Password
     SmtpServer: "smtp.gmail.com",
     Port: 587,
 };
@@ -36,6 +51,10 @@ const transporter = nodemailer.createTransport({
 });
 
 async function sendMail({ to, subject, text }) {
+    if (!emailConfig.Username || !emailConfig.Password) {
+        console.error("Email credentials missing. Skipping email sending.");
+        return;
+    }
     return transporter.sendMail({
         from: `"Support Ticket System" <${emailConfig.Username}>`,
         to,
@@ -150,7 +169,6 @@ app.post("/tickets", async (req, res) => {
         createdBy: email,
         createdAt: new Date().toISOString(),
         messages: [],
-        // actionTaken field is added here for consistency, though it's typically set on update
         actionTaken: "",
     };
 
@@ -179,34 +197,32 @@ app.get("/admin/tickets", async (req, res) => {
     res.json(snapshot.docs.map((d) => d.data()));
 });
 
-// ADMIN: GET SINGLE TICKET (Needed for Admin communication update logic in App.js)
+// ADMIN: GET SINGLE TICKET
 app.get("/ticket/:id", async (req, res) => {
     const doc = await ticketsRef.doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ success: false, message: "Ticket not found" });
     res.json(doc.data());
 });
 
-// ADMIN: GET TICKETS BY PRODUCT (For history feature: What was the problem/date/fix)
+// ADMIN: GET TICKETS BY PRODUCT (Requires a composite index in Firebase!)
 app.get("/admin/tickets/product/:productName", async (req, res) => {
     const { productName } = req.params;
-    // Query for all tickets for the specified product, ordered by creation date (newest first)
+    
+    // NOTE: This query requires a composite index on (product ASC, createdAt DESC) in Firestore!
     const snapshot = await ticketsRef
-        .where("product", "==", productName)
+        .where("product", "==", decodeURIComponent(productName))
         .orderBy("createdAt", "desc")
         .get();
 
-    // The data() contains: title, description (the problem), status, createdBy, createdAt (date booked), and actionTaken (the fix)
     res.json(snapshot.docs.map((d) => d.data()));
 });
 
 // ADMIN: UPDATE TICKET STATUS
 app.put("/admin/tickets/:id", async (req, res) => {
     const { id } = req.params;
-    // 'actionTaken' is what you did to fix the problem.
     const { status, actionTaken } = req.body;
     const doc = ticketsRef.doc(id);
 
-    // Ensure actionTaken is saved on update
     await doc.update({ status, actionTaken });
 
     const updated = (await doc.get()).data();
@@ -241,5 +257,5 @@ app.post("/admin/tickets/:id/message", async (req, res) => {
 });
 
 app.listen(port, () =>
-    console.log(`✅ Server running with Firestore at http://localhost:${port}`)
+    console.log(`✅ Server running with Firestore on port ${port}`)
 );
