@@ -1,11 +1,12 @@
+// client/src/App.js
+
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
 function App() {
-
-    const BACKEND_URL = 'https://support-ticket-system-igce.onrender.com/'; 
-   
+    // 🛑 IMPORTANT: REPLACE THIS PLACEHOLDER URL WITH YOUR DEPLOYED RENDER BACKEND URL
+    const BACKEND_URL = 'https://support-ticket-system-igce.onrender.com/'; // Example: 'https://my-ticket-api.onrender.com'
 
     const [message, setMessage] = useState("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -369,29 +370,7 @@ function App() {
         }
     };
 
-    const handleForgotPassword = async () => {
-        const userEmail = window.prompt("Please enter your email to reset your password:");
-        if (!userEmail) return;
-
-        try {
-            // Updated URL
-            const res = await fetch(`${BACKEND_URL}/forgot-password`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: userEmail }),
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-                window.alert(data.message);
-            } else {
-                window.alert(`Error: ${data.message}`);
-            }
-        } catch (error) {
-            console.error("Forgot password request failed:", error);
-            window.alert("Could not connect to the server. Please try again later.");
-        }
-    };
+    // REMOVED handleForgotPassword FUNCTION
 
     // ------------------- RENDER -------------------
     if (!isLoggedIn) {
@@ -429,9 +408,7 @@ function App() {
                             Sign In
                         </button>
                     </form>
-                    <div className="login-footer">
-                        <p>Forgot password? <a href="#" onClick={handleForgotPassword}>Click here to reset</a></p>
-                    </div>
+                    {/* REMOVED FORGOT PASSWORD LINK */}
                 </div>
             </div>
         );
