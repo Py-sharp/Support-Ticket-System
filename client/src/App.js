@@ -3,7 +3,7 @@ import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
 // Add your live backend URL here (Remember to replace this with your actual Render URL later)
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = "https://support-ticket-system-igce.onrender.com";
 
 function App() {
     const [message, setMessage] = useState("");
