@@ -3,6 +3,9 @@ import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
 function App() {
+
+    const BACKEND_URL = 'https://support-ticket-system-igce.onrender.com/'; 
+
     const [message, setMessage] = useState("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [role, setRole] = useState(""); // "User" or "Admin"
@@ -29,7 +32,6 @@ function App() {
     // Admin state
     const [allTickets, setAllTickets] = useState([]); // Master list of all tickets
     const [displayedTickets, setDisplayedTickets] = useState([]); // Filtered list for display
-    // const [groupedTickets, setGroupedTickets] = useState({}); // REMOVED: No longer grouping in main view
     const [filterStatus, setFilterStatus] = useState("All"); // Admin status filter
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTicket, setSelectedTicket] = useState(null); // For admin ticket details popup
@@ -64,18 +66,17 @@ function App() {
 
 
     useEffect(() => {
-        fetch("http://localhost:5000/")
+        // Updated URL
+        fetch(`${BACKEND_URL}/`)
             .then((res) => res.text())
             .then((data) => setMessage(data));
-    }, []);
+    }, [BACKEND_URL]); // Added BACKEND_URL to dependency array for completeness
 
-    // RESTORED useEffect: Filters tickets and sets unread count (no grouping)
     useEffect(() => {
         let filtered = [...allTickets];
 
         if (searchQuery) {
-            // Filter by product only if it exists
-            filtered = filtered.filter(t => t.product && t.product.toLowerCase().includes(searchQuery.toLowerCase()));
+            filtered = filtered.filter(t => t.product.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
         if (filterStatus !== "All") {
@@ -99,9 +100,10 @@ function App() {
         setPasswordChangeMessage("");
 
         const adminEmail = "kgomotsosele80@gmail.com";
+        // Updated URL
         const loginUrl = email === adminEmail
-            ? "http://localhost:5000/admin/login"
-            : "http://localhost:5000/login";
+            ? `${BACKEND_URL}/admin/login`
+            : `${BACKEND_URL}/login`;
 
         try {
             const res = await fetch(loginUrl, {
@@ -135,13 +137,15 @@ function App() {
     };
 
     const fetchTickets = (userEmail) => {
-        fetch(`http://localhost:5000/tickets/${userEmail}`)
+        // Updated URL
+        fetch(`${BACKEND_URL}/tickets/${userEmail}`)
             .then((res) => res.json())
             .then((data) => setTickets(data));
     };
 
     const fetchAllTickets = () => {
-        fetch(`http://localhost:5000/admin/tickets`)
+        // Updated URL
+        fetch(`${BACKEND_URL}/admin/tickets`)
             .then((res) => res.json())
             .then((data) => {
                 setAllTickets(data);
@@ -149,7 +153,8 @@ function App() {
     };
 
     const fetchUsers = () => {
-        fetch("http://localhost:5000/admin/users")
+        // Updated URL
+        fetch(`${BACKEND_URL}/admin/users`)
             .then((res) => res.json())
             .then((data) => setUsers(data));
     };
@@ -162,7 +167,6 @@ function App() {
         setTickets([]);
         setAllTickets([]);
         setDisplayedTickets([]);
-        // setGroupedTickets({}); // Removed
         setConfirmation("");
         setLoginError("");
         setFilterStatus("All");
@@ -187,7 +191,8 @@ function App() {
             return;
         }
 
-        const res = await fetch("http://localhost:5000/user/update-password", {
+        // Updated URL
+        const res = await fetch(`${BACKEND_URL}/user/update-password`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, currentPassword, newPassword }),
@@ -208,7 +213,8 @@ function App() {
         e.preventDefault();
         setLoading(true);
 
-        const res = await fetch("http://localhost:5000/tickets", {
+        // Updated URL
+        const res = await fetch(`${BACKEND_URL}/tickets`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ title, description, category, priority, email, product }),
@@ -227,94 +233,72 @@ function App() {
         }
     };
 
-    // FIXED: Now uses URL encoding for robustness and includes error handling for the index issue
     const openAdminProductHistoryPopup = async (productName) => {
         setHistoryProductName(productName);
-        setProductHistory([]); // Clear previous history
-        setProductHistoryPopup(true); // Open the popup immediately with a loading state
+        setProductHistoryPopup(true);
+        setProductHistory([]);
 
-        try {
-            // CRITICAL FIX: Encode the product name for the URL to handle spaces/special characters
-            const encodedProductName = encodeURIComponent(productName);
-            const res = await fetch(`http://localhost:5000/admin/tickets/product/${encodedProductName}`);
-
-            if (!res.ok) {
-                // Throw error if response status is not 2xx
-                const errorText = await res.text();
-                throw new Error(`Failed to fetch history (Status: ${res.status}): ${errorText}`);
-            }
-
-            const data = await res.json();
-            setProductHistory(data);
-
-        } catch (error) {
-            console.error("Failed to fetch product history:", error);
-            // CRITICAL FIX: Alert the user about the most common failure (Firebase Index)
-            window.alert(`Failed to load product history for "${productName}". Please check the console for details.\n\nNOTE: If the error mentions 'FAILED_PRECONDITION', you need to create a composite index in your Firebase console.`);
-            setProductHistoryPopup(false); // Close popup on failure
-            setProductHistory([]); // Clear history on failure
-        }
+        // Updated URL
+        const res = await fetch(`${BACKEND_URL}/admin/tickets/product/${productName}`);
+        const data = await res.json();
+        setProductHistory(data);
     };
 
     const openTicketDetailsPopup = async (ticket) => {
-        // For Admin, it's better to fetch the latest details
-        if (role === "Admin" && ticket.id) {
-            const res = await fetch(`http://localhost:5000/ticket/${ticket.id}`);
-            if (res.ok) {
-                const latestTicket = await res.json();
-                setSelectedTicket(latestTicket);
-                return;
-            }
-        }
         setSelectedTicket(ticket);
     };
 
     // ------------------- ADMIN -------------------
     const handleAdminSearch = (e) => {
         e.preventDefault();
-        // Search logic is handled in the useEffect based on searchQuery state
     };
 
     const closeTicketDetailsPopup = () => {
         setSelectedTicket(null);
     };
 
-    // Unified function to handle status updates
+    // Unified function to handle status updates (Fix for CollectionA and In Progress)
     const handleUpdateTicket = async (id, status, actionTaken = "") => {
         // Prompt for action taken if status is 'In Progress', 'Collected', or 'Closed'
         let finalActionTaken = actionTaken;
-        if ((status === 'In Progress' || status === 'Collected' || status === 'Closed' || status === 'Ready for Collection') && !actionTaken) {
-            finalActionTaken = window.prompt(`Enter action taken (the fix) for status: ${status}:`);
+        if ((status === 'In Progress' || status === 'Collected' || status === 'Closed') && !actionTaken) {
+            finalActionTaken = window.prompt(`Enter action taken for status: ${status}:`);
             if (finalActionTaken === null || finalActionTaken.trim() === "") {
                 // If user cancels or enters empty string, use a default message.
                 finalActionTaken = `Ticket status updated to ${status}.`;
             }
         }
 
-        await fetch(`http://localhost:5000/admin/tickets/${id}`, {
+        // Updated URL
+        await fetch(`${BACKEND_URL}/admin/tickets/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status, actionTaken: finalActionTaken }),
         });
-        fetchAllTickets(); // Reloads all tickets, triggering the filtering
+        fetchAllTickets();
         if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`http://localhost:5000/ticket/${id}`);
+            // Updated URL
+            const res = await fetch(`${BACKEND_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
         }
     };
 
+    // Removed handleCollect as it's now covered by handleUpdateTicket(id, "Collected")
+
     const handleCommunicate = async (id) => {
         const message = window.prompt("Enter custom message to user:");
         if (!message) return;
-        await fetch(`http://localhost:5000/admin/tickets/${id}/message`, {
+        // Updated URL
+        await fetch(`${BACKEND_URL}/admin/tickets/${id}/message`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message }),
         });
         fetchAllTickets();
         if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`http://localhost:5000/ticket/${id}`);
+            // Updated URL
+            const res = await fetch(`${BACKEND_URL}/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
         }
@@ -327,7 +311,8 @@ function App() {
         const autoPassword = Math.random().toString(36).slice(-8);
 
         try {
-            const res = await fetch("http://localhost:5000/admin/register", {
+            // Updated URL
+            const res = await fetch(`${BACKEND_URL}/admin/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: userEmail, password: autoPassword }),
@@ -358,7 +343,8 @@ function App() {
         }
 
         try {
-            const res = await fetch(`http://localhost:5000/admin/users/${userEmail}`, {
+            // Updated URL
+            const res = await fetch(`${BACKEND_URL}/admin/users/${userEmail}`, {
                 method: "DELETE",
             });
 
@@ -387,7 +373,8 @@ function App() {
         if (!userEmail) return;
 
         try {
-            const res = await fetch("http://localhost:5000/forgot-password", {
+            // Updated URL
+            const res = await fetch(`${BACKEND_URL}/forgot-password`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: userEmail }),
@@ -729,8 +716,7 @@ function App() {
                     <>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                             <h2 className="section-title">
-                                {/* UPDATED: Show count of individual tickets */}
-                                {adminView === "tickets" ? `Tickets (${displayedTickets.length})` : "User Management"}
+                                {adminView === "tickets" ? `Tickets (${allTickets.length})` : "User Management"}
                             </h2>
                             {adminView === "userManagement" && (
                                 <button
@@ -768,48 +754,39 @@ function App() {
                                         <button type="submit">Search</button>
                                     </form>
                                 </div>
-                                {/* RESTORED: Table now lists individual tickets using displayedTickets */}
-                                <div className="admin-table-wrapper">
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Ref #</th>
-                                                <th>From</th>
-                                                <th>Title</th>
-                                                <th>Product</th>
-                                                <th>Status</th>
-                                                <th>Actions</th>
+                                <table className="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ref #</th>
+                                            <th>From</th>
+                                            <th>Title</th>
+                                            <th>Product</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayedTickets.map((t) => (
+                                            <tr key={t.id}>
+                                                <td>
+                                                    <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
+                                                    {t.id}
+                                                </td>
+                                                <td>{t.createdBy}</td>
+                                                <td>
+                                                    <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
+                                                    {t.title}
+                                                </td>
+                                                <td>{t.product}</td>
+                                                <td>{t.status}</td>
+                                                <td>
+                                                    <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                                    <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displayedTickets.map((t) => (
-                                                <tr key={t.id}>
-                                                    <td>
-                                                        <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
-                                                        {t.id}
-                                                    </td>
-                                                    <td>{t.createdBy}</td>
-                                                    <td>
-                                                        <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
-                                                        {t.title}
-                                                    </td>
-                                                    <td>{t.product}</td>
-                                                    <td>{t.status}</td>
-                                                    <td>
-                                                        <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                                        {/* History button remains, but now works from individual ticket */}
-                                                        <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {displayedTickets.length === 0 && (
-                                    <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
-                                        No tickets match the current filter/search.
-                                    </p>
-                                )}
+                                        ))}
+                                    </tbody>
+                                </table>
                             </>
                         )}
 
@@ -877,21 +854,15 @@ function App() {
                             {selectedTicket.priority}
                         </p>
                         <p><strong>Description:</strong> {selectedTicket.description}</p>
-                        <p><strong>Product:</strong> {selectedTicket.product || 'N/A'}</p>
+                        <p><strong>Product:</strong> {selectedTicket.product}</p>
                         <p><strong>Created By:</strong> {selectedTicket.createdBy}</p>
-
-                        {/* Show Fix/Action Taken if available */}
-                        {selectedTicket.actionTaken && (
-                            <p style={{ marginTop: '10px', padding: '10px', background: '#f0f4f8', borderRadius: '4px' }}>
-                                <strong>Admin Action/Fix:</strong> {selectedTicket.actionTaken}
-                            </p>
-                        )}
 
                         {/* Conditionally render actions for admin only */}
                         {role === "Admin" && (
                             <>
                                 <h4>Actions</h4>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    {/* Mark Collected (Fix for "CollectionA" - initial review) */}
                                     <button
                                         onClick={() => handleUpdateTicket(selectedTicket.id, "Collected")}
                                         className="action-button-collected"
@@ -899,6 +870,7 @@ function App() {
                                         Mark Collected
                                     </button>
 
+                                    {/* Mark In Progress (Fix for non-working status update) */}
                                     <button
                                         onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}
                                         className="action-button-inprogress"
@@ -906,13 +878,15 @@ function App() {
                                         Mark In Progress
                                     </button>
 
+                                    {/* NEW: Ready for Collection Status */}
                                     <button
                                         onClick={() => handleUpdateTicket(selectedTicket.id, "Ready for Collection")}
-                                        className="action-button-ready"
+                                        className="action-button-ready" /* New CSS class for styling */
                                     >
                                         Mark Ready for Collection
                                     </button>
 
+                                    {/* Communicate (Already works and sends email) */}
                                     <button
                                         onClick={() => handleCommunicate(selectedTicket.id)}
                                         className="action-button-communicate"
@@ -920,6 +894,7 @@ function App() {
                                         Communicate
                                     </button>
 
+                                    {/* Close Ticket (Using unified function) */}
                                     <button
                                         onClick={() => handleUpdateTicket(selectedTicket.id, "Closed")}
                                         className="action-button-close"
@@ -933,7 +908,7 @@ function App() {
 
                         <h4>Communication History</h4>
                         <ul>
-                            {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
+                            {selectedTicket.messages.length > 0 ? (
                                 selectedTicket.messages.map((msg, index) => (
                                     <li key={index}>
                                         <small>{new Date(msg.timestamp).toLocaleString()}</small>
@@ -951,39 +926,23 @@ function App() {
             {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
             {productHistoryPopup && role === "Admin" && (
                 <div className="popup-overlay">
-                    <div className="popup" style={{ maxWidth: '600px' }}>
+                    <div className="popup">
                         <div className="popup-header">
-                            {/* UPDATED: Show count of history tickets */}
-                            <h3>Booking History for **{historyProductName}** ({productHistory.length} times)</h3>
+                            <h3>History for {historyProductName}</h3>
                             <button className="close-button" onClick={() => setProductHistoryPopup(false)}>&times;</button>
                         </div>
                         <ul className="history-list">
-                            {productHistory.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
-                                    Loading history... (If this persists, check your server logs.)
-                                </p>
-                            ) : (
-                                productHistory.map((h, index) => (
-                                    <li key={h.id} style={{ borderBottom: index < productHistory.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
-
-                                        <p style={{ fontWeight: 'bold' }}>
-                                            <span className={`priority-dot ${getPriorityDotClass(h.priority)}`}></span>
-                                            Ticket Ref #{h.id} | Status: {h.status}
-                                        </p>
-                                        <p>
-                                            **Problem (Description):** *{h.description}*
-                                        </p>
-                                        {h.actionTaken && (
-                                            <p style={{ marginTop: '5px', color: '#3182ce' }}>
-                                                **Fix/Action Taken:** {h.actionTaken}
-                                            </p>
-                                        )}
-                                        <small style={{ display: 'block', marginTop: '5px', color: '#718096' }}>
-                                            Booked on: {new Date(h.createdAt).toLocaleString()} by **{h.createdBy}**
-                                        </small>
-                                    </li>
-                                ))
-                            )}
+                            {productHistory.map((h) => (
+                                <li key={h.id}>
+                                    <strong>Ticket Ref #{h.id}</strong> | from **{h.createdBy}**
+                                    <br />
+                                    <span>Title: {h.title}</span> | <span>Status: {h.status}</span>
+                                    <br />
+                                    <em>{h.description}</em>
+                                    <br />
+                                    <small>{new Date(h.createdAt).toLocaleString()}</small>
+                                </li>
+                            ))}
                         </ul>
                     </div>
                 </div>
@@ -995,6 +954,5 @@ function App() {
         </div>
     );
 }
-//checkinggit 
 
 export default App;
