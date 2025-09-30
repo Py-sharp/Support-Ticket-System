@@ -1,0 +1,24 @@
+# Compiled/Generated Files
+node_modules/
+client/node_modules/
+server/node_modules/
+/client/build
+/client/dist
+
+# IDE/OS Generated Files (CRITICAL: Fixes your permission error)
+.vs/
+*.vsidx
+*.sqlite
+.DS_Store
+
+# Logs and Caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+.eslintcache
+.npm
+
+# Environment Variables/Secrets (IMPORTANT: Prevents exposing credentials)
+.env
+server/serviceAccountKey.json
+server/serviceAccountKey.json.json

@@ -29,19 +29,39 @@ function App() {
     // Admin state
     const [allTickets, setAllTickets] = useState([]); // Master list of all tickets
     const [displayedTickets, setDisplayedTickets] = useState([]); // Filtered list for display
+    // const [groupedTickets, setGroupedTickets] = useState({}); // REMOVED: No longer grouping in main view
     const [filterStatus, setFilterStatus] = useState("All"); // Admin status filter
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTicket, setSelectedTicket] = useState(null); // For admin ticket details popup
     const [productHistoryPopup, setProductHistoryPopup] = useState(false);
     const [productHistory, setProductHistory] = useState([]);
     const [historyProductName, setHistoryProductName] = useState("");
-    
+
     const [users, setUsers] = useState([]);
     const [adminView, setAdminView] = useState("tickets"); // "tickets" or "userManagement"
-    
+
     // New state for header enhancements
     const [showQuickMenu, setShowQuickMenu] = useState(false);
     const [unreadTickets, setUnreadTickets] = useState(0);
+
+    // Helper function for priority dot color (Req 2)
+    const getPriorityDotClass = (priority) => {
+        const p = priority ? priority.toLowerCase() : "low";
+        if (p === "high") return "dot-high"; // Red
+        if (p === "medium") return "dot-medium"; // Amber
+        return "dot-low"; // Green
+    };
+
+    // Helper function for category abbreviation (Req 3)
+    const getCategoryAbbreviation = (category) => {
+        if (!category) return "";
+        const c = category.toLowerCase();
+        if (c.includes("technical")) return "T";
+        if (c.includes("general")) return "G";
+        if (c.includes("billing")) return "B";
+        return "";
+    };
+
 
     useEffect(() => {
         fetch("http://localhost:5000/")
@@ -49,11 +69,13 @@ function App() {
             .then((data) => setMessage(data));
     }, []);
 
+    // RESTORED useEffect: Filters tickets and sets unread count (no grouping)
     useEffect(() => {
         let filtered = [...allTickets];
 
         if (searchQuery) {
-            filtered = filtered.filter(t => t.product.toLowerCase().includes(searchQuery.toLowerCase()));
+            // Filter by product only if it exists
+            filtered = filtered.filter(t => t.product && t.product.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
         if (filterStatus !== "All") {
@@ -61,7 +83,7 @@ function App() {
         }
 
         setDisplayedTickets(filtered);
-        
+
         // Update unread tickets count for admin
         if (role === "Admin") {
             const newTickets = allTickets.filter(t => t.status === "Open").length;
@@ -103,7 +125,7 @@ function App() {
 
             if (data.user.role === "User") {
                 fetchTickets(data.user.email);
-            } else { 
+            } else {
                 fetchAllTickets();
                 fetchUsers();
             }
@@ -125,7 +147,7 @@ function App() {
                 setAllTickets(data);
             });
     };
-    
+
     const fetchUsers = () => {
         fetch("http://localhost:5000/admin/users")
             .then((res) => res.json())
@@ -140,6 +162,7 @@ function App() {
         setTickets([]);
         setAllTickets([]);
         setDisplayedTickets([]);
+        // setGroupedTickets({}); // Removed
         setConfirmation("");
         setLoginError("");
         setFilterStatus("All");
@@ -174,7 +197,7 @@ function App() {
             setPasswordChangeMessage("Password updated successfully!");
             setCurrentPassword("");
             setNewPassword("");
-            setPassword(newPassword); 
+            setPassword(newPassword);
         } else {
             setPasswordChangeMessage(data.message);
         }
@@ -204,48 +227,81 @@ function App() {
         }
     };
 
+    // FIXED: Now uses URL encoding for robustness and includes error handling for the index issue
     const openAdminProductHistoryPopup = async (productName) => {
         setHistoryProductName(productName);
-        setProductHistoryPopup(true);
-        setProductHistory([]);
+        setProductHistory([]); // Clear previous history
+        setProductHistoryPopup(true); // Open the popup immediately with a loading state
 
-        const res = await fetch(`http://localhost:5000/admin/tickets/product/${productName}`);
-        const data = await res.json();
-        setProductHistory(data);
+        try {
+            // CRITICAL FIX: Encode the product name for the URL to handle spaces/special characters
+            const encodedProductName = encodeURIComponent(productName);
+            const res = await fetch(`http://localhost:5000/admin/tickets/product/${encodedProductName}`);
+
+            if (!res.ok) {
+                // Throw error if response status is not 2xx
+                const errorText = await res.text();
+                throw new Error(`Failed to fetch history (Status: ${res.status}): ${errorText}`);
+            }
+
+            const data = await res.json();
+            setProductHistory(data);
+
+        } catch (error) {
+            console.error("Failed to fetch product history:", error);
+            // CRITICAL FIX: Alert the user about the most common failure (Firebase Index)
+            window.alert(`Failed to load product history for "${productName}". Please check the console for details.\n\nNOTE: If the error mentions 'FAILED_PRECONDITION', you need to create a composite index in your Firebase console.`);
+            setProductHistoryPopup(false); // Close popup on failure
+            setProductHistory([]); // Clear history on failure
+        }
     };
 
     const openTicketDetailsPopup = async (ticket) => {
+        // For Admin, it's better to fetch the latest details
+        if (role === "Admin" && ticket.id) {
+            const res = await fetch(`http://localhost:5000/ticket/${ticket.id}`);
+            if (res.ok) {
+                const latestTicket = await res.json();
+                setSelectedTicket(latestTicket);
+                return;
+            }
+        }
         setSelectedTicket(ticket);
     };
 
     // ------------------- ADMIN -------------------
     const handleAdminSearch = (e) => {
         e.preventDefault();
+        // Search logic is handled in the useEffect based on searchQuery state
     };
 
     const closeTicketDetailsPopup = () => {
         setSelectedTicket(null);
     };
 
-    const handleUpdateTicket = async (id, status, actionTaken) => {
+    // Unified function to handle status updates
+    const handleUpdateTicket = async (id, status, actionTaken = "") => {
+        // Prompt for action taken if status is 'In Progress', 'Collected', or 'Closed'
+        let finalActionTaken = actionTaken;
+        if ((status === 'In Progress' || status === 'Collected' || status === 'Closed' || status === 'Ready for Collection') && !actionTaken) {
+            finalActionTaken = window.prompt(`Enter action taken (the fix) for status: ${status}:`);
+            if (finalActionTaken === null || finalActionTaken.trim() === "") {
+                // If user cancels or enters empty string, use a default message.
+                finalActionTaken = `Ticket status updated to ${status}.`;
+            }
+        }
+
         await fetch(`http://localhost:5000/admin/tickets/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status, actionTaken }),
+            body: JSON.stringify({ status, actionTaken: finalActionTaken }),
         });
-        fetchAllTickets(); 
+        fetchAllTickets(); // Reloads all tickets, triggering the filtering
         if (selectedTicket && selectedTicket.id === id) {
             const res = await fetch(`http://localhost:5000/ticket/${id}`);
             const updatedTicket = await res.json();
             setSelectedTicket(updatedTicket);
         }
-    };
-
-    const handleCollect = async (id) => {
-        await fetch(`http://localhost:5000/admin/tickets/${id}/collect`, {
-            method: "POST",
-        });
-        fetchAllTickets(); 
     };
 
     const handleCommunicate = async (id) => {
@@ -256,7 +312,7 @@ function App() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message }),
         });
-        fetchAllTickets(); 
+        fetchAllTickets();
         if (selectedTicket && selectedTicket.id === id) {
             const res = await fetch(`http://localhost:5000/ticket/${id}`);
             const updatedTicket = await res.json();
@@ -295,7 +351,7 @@ function App() {
             window.alert("Registration failed. Please check the console for details.");
         }
     };
-    
+
     const handleDeregisterUser = async (userEmail) => {
         if (!window.confirm(`Are you sure you want to deregister ${userEmail}? This action cannot be undone.`)) {
             return;
@@ -409,7 +465,7 @@ function App() {
                         </div>
                     </div>
                 </div>
-                
+
                 <div className="header-user-info">
                     <div className="header-welcome">
                         <div className="user-avatar">
@@ -420,7 +476,7 @@ function App() {
                             <span className="user-status-badge">{role}</span>
                         </div>
                     </div>
-                    
+
                     {/* Admin's Quick Actions Menu */}
                     {role === "Admin" && (
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -440,7 +496,7 @@ function App() {
                                     {unreadTickets}
                                 </div>
                             )}
-                            <button 
+                            <button
                                 onClick={() => {
                                     setShowQuickMenu(!showQuickMenu);
                                     if (!showQuickMenu) setAdminView("tickets"); // Hide user management if menu is about to open
@@ -457,7 +513,7 @@ function App() {
                             >
                                 Quick Actions ▼
                             </button>
-                            
+
                             {showQuickMenu && (
                                 <div style={{
                                     position: 'absolute',
@@ -471,7 +527,7 @@ function App() {
                                     zIndex: 1000,
                                     minWidth: '200px'
                                 }}>
-                                    <button 
+                                    <button
                                         onClick={() => { handleRegisterUser(); setShowQuickMenu(false); }}
                                         style={{
                                             width: '100%',
@@ -487,7 +543,7 @@ function App() {
                                     >
                                         ➕ Register New User
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => { setAdminView("userManagement"); setShowQuickMenu(false); }}
                                         style={{
                                             width: '100%',
@@ -503,8 +559,8 @@ function App() {
                                     >
                                         👥 Manage Users
                                     </button>
-                                    <div style={{borderTop: '1px solid #e2e8f0', margin: '5px 0'}}></div>
-                                    <div style={{padding: '8px', fontSize: '12px', color: '#718096'}}>
+                                    <div style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }}></div>
+                                    <div style={{ padding: '8px', fontSize: '12px', color: '#718096' }}>
                                         Tickets: {allTickets.length} | Users: {users.filter(u => u.role === 'User').length}
                                     </div>
                                 </div>
@@ -512,8 +568,8 @@ function App() {
                         </div>
                     )}
 
-                     {/* User's Quick Actions menu */}
-                     {role === "User" && (
+                    {/* User's Quick Actions menu */}
+                    {role === "User" && (
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <button
                                 onClick={() => {
@@ -568,13 +624,13 @@ function App() {
                             )}
                         </div>
                     )}
-                    
-                    <button onClick={handleLogout} style={{ 
-                        padding: '10px 20px', 
-                        background: 'transparent', 
-                        border: '2px solid #F25c54', 
-                        borderRadius: '8px', 
-                        color: '#F25c54', 
+
+                    <button onClick={handleLogout} style={{
+                        padding: '10px 20px',
+                        background: 'transparent',
+                        border: '2px solid #F25c54',
+                        borderRadius: '8px',
+                        color: '#F25c54',
                         cursor: 'pointer',
                         fontWeight: '600',
                         transition: 'all 0.3s ease',
@@ -634,7 +690,12 @@ function App() {
                                     {tickets.map((t) => (
                                         <li key={t.id}>
                                             <div>
-                                                <strong>Ref #{t.id}</strong> | {t.product} | {t.title} ({t.status})
+                                                {/* Priority Dot & Ref # */}
+                                                <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
+                                                <strong>Ref #{t.id}</strong> | {t.product} |
+                                                {/* Category Abbreviation & Title */}
+                                                <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
+                                                {t.title} ({t.status})
                                             </div>
                                             <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
                                         </li>
@@ -642,7 +703,7 @@ function App() {
                                 </ul>
                             </>
                         )}
-                        
+
                         {userView === "passwordChange" && (
                             <div className="password-change-section">
                                 <h3>Change Password</h3>
@@ -668,10 +729,11 @@ function App() {
                     <>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                             <h2 className="section-title">
-                                {adminView === "tickets" ? `Tickets (${allTickets.length})` : "User Management"}
+                                {/* UPDATED: Show count of individual tickets */}
+                                {adminView === "tickets" ? `Tickets (${displayedTickets.length})` : "User Management"}
                             </h2>
                             {adminView === "userManagement" && (
-                                <button 
+                                <button
                                     onClick={() => setAdminView("tickets")}
                                     style={{
                                         padding: '8px 16px',
@@ -706,42 +768,57 @@ function App() {
                                         <button type="submit">Search</button>
                                     </form>
                                 </div>
-                                <table className="admin-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Ref #</th>
-                                            <th>From</th>
-                                            <th>Title</th>
-                                            <th>Product</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {displayedTickets.map((t) => (
-                                            <tr key={t.id}>
-                                                <td>{t.id}</td>
-                                                <td>{t.createdBy}</td>
-                                                <td>{t.title}</td>
-                                                <td>{t.product}</td>
-                                                <td>{t.status}</td>
-                                                <td>
-                                                    <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                                    <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
-                                                </td>
+                                {/* RESTORED: Table now lists individual tickets using displayedTickets */}
+                                <div className="admin-table-wrapper">
+                                    <table className="admin-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Ref #</th>
+                                                <th>From</th>
+                                                <th>Title</th>
+                                                <th>Product</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {displayedTickets.map((t) => (
+                                                <tr key={t.id}>
+                                                    <td>
+                                                        <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
+                                                        {t.id}
+                                                    </td>
+                                                    <td>{t.createdBy}</td>
+                                                    <td>
+                                                        <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
+                                                        {t.title}
+                                                    </td>
+                                                    <td>{t.product}</td>
+                                                    <td>{t.status}</td>
+                                                    <td>
+                                                        <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
+                                                        {/* History button remains, but now works from individual ticket */}
+                                                        <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {displayedTickets.length === 0 && (
+                                    <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
+                                        No tickets match the current filter/search.
+                                    </p>
+                                )}
                             </>
                         )}
-                        
+
                         {adminView === "userManagement" && (
                             <div className="user-management">
                                 <div className="user-count">
                                     <strong>Total Users: {users.filter(user => user.role === "User").length}</strong>
                                 </div>
-                          
+
                                 <table className="users-table">
                                     <thead>
                                         <tr>
@@ -756,7 +833,7 @@ function App() {
                                                 <td>{user.email}</td>
                                                 <td>{user.role}</td>
                                                 <td>
-                                                    <button 
+                                                    <button
                                                         className="danger-button"
                                                         onClick={() => handleDeregisterUser(user.email)}
                                                         title="Deregister user"
@@ -768,7 +845,7 @@ function App() {
                                         ))}
                                     </tbody>
                                 </table>
-                          
+
                                 {users.filter(user => user.role === "User").length === 0 && (
                                     <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
                                         No users registered yet.
@@ -779,7 +856,7 @@ function App() {
                     </>
                 )}
             </main>
-            
+
             {/* ------------------- TICKET DETAILS POPUP (FOR BOTH USERS AND ADMINS) ------------------- */}
             {selectedTicket && (
                 <div className="popup-overlay">
@@ -789,25 +866,74 @@ function App() {
                             <button className="close-button" onClick={closeTicketDetailsPopup}>&times;</button>
                         </div>
                         <p><strong>Status:</strong> {selectedTicket.status}</p>
-                        <p><strong>Title:</strong> {selectedTicket.title}</p>
+                        <p>
+                            <strong>Title:</strong>
+                            <span className="category-abbr">({getCategoryAbbreviation(selectedTicket.category)})</span>
+                            {selectedTicket.title}
+                        </p>
+                        <p>
+                            <strong>Priority:</strong>
+                            <span className={`priority-dot ${getPriorityDotClass(selectedTicket.priority)}`}></span>
+                            {selectedTicket.priority}
+                        </p>
                         <p><strong>Description:</strong> {selectedTicket.description}</p>
-                        <p><strong>Product:</strong> {selectedTicket.product}</p>
+                        <p><strong>Product:</strong> {selectedTicket.product || 'N/A'}</p>
                         <p><strong>Created By:</strong> {selectedTicket.createdBy}</p>
+
+                        {/* Show Fix/Action Taken if available */}
+                        {selectedTicket.actionTaken && (
+                            <p style={{ marginTop: '10px', padding: '10px', background: '#f0f4f8', borderRadius: '4px' }}>
+                                <strong>Admin Action/Fix:</strong> {selectedTicket.actionTaken}
+                            </p>
+                        )}
 
                         {/* Conditionally render actions for admin only */}
                         {role === "Admin" && (
                             <>
                                 <h4>Actions</h4>
-                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}>Mark In Progress</button>
-                                <button onClick={() => handleUpdateTicket(selectedTicket.id, "Closed", window.prompt("Enter action taken:"))}>Close Ticket</button>
-                                <button onClick={() => handleCommunicate(selectedTicket.id)}>Communicate</button>
-                                <button onClick={() => handleCollect(selectedTicket.id)}>Mark for Collection</button>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <button
+                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Collected")}
+                                        className="action-button-collected"
+                                    >
+                                        Mark Collected
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}
+                                        className="action-button-inprogress"
+                                    >
+                                        Mark In Progress
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Ready for Collection")}
+                                        className="action-button-ready"
+                                    >
+                                        Mark Ready for Collection
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleCommunicate(selectedTicket.id)}
+                                        className="action-button-communicate"
+                                    >
+                                        Communicate
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Closed")}
+                                        className="action-button-close"
+                                    >
+                                        Close Ticket
+                                    </button>
+                                </div>
                             </>
                         )}
 
+
                         <h4>Communication History</h4>
                         <ul>
-                            {selectedTicket.messages.length > 0 ? (
+                            {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
                                 selectedTicket.messages.map((msg, index) => (
                                     <li key={index}>
                                         <small>{new Date(msg.timestamp).toLocaleString()}</small>
@@ -825,23 +951,39 @@ function App() {
             {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
             {productHistoryPopup && role === "Admin" && (
                 <div className="popup-overlay">
-                    <div className="popup">
+                    <div className="popup" style={{ maxWidth: '600px' }}>
                         <div className="popup-header">
-                            <h3>History for {historyProductName}</h3>
+                            {/* UPDATED: Show count of history tickets */}
+                            <h3>Booking History for **{historyProductName}** ({productHistory.length} times)</h3>
                             <button className="close-button" onClick={() => setProductHistoryPopup(false)}>&times;</button>
                         </div>
                         <ul className="history-list">
-                            {productHistory.map((h) => (
-                                <li key={h.id}>
-                                    <strong>Ticket Ref #{h.id}</strong> | from **{h.createdBy}**
-                                    <br />
-                                    <span>Title: {h.title}</span> | <span>Status: {h.status}</span>
-                                    <br />
-                                    <em>{h.description}</em>
-                                    <br />
-                                    <small>{new Date(h.createdAt).toLocaleString()}</small>
-                                </li>
-                            ))}
+                            {productHistory.length === 0 ? (
+                                <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
+                                    Loading history... (If this persists, check your server logs.)
+                                </p>
+                            ) : (
+                                productHistory.map((h, index) => (
+                                    <li key={h.id} style={{ borderBottom: index < productHistory.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
+
+                                        <p style={{ fontWeight: 'bold' }}>
+                                            <span className={`priority-dot ${getPriorityDotClass(h.priority)}`}></span>
+                                            Ticket Ref #{h.id} | Status: {h.status}
+                                        </p>
+                                        <p>
+                                            **Problem (Description):** *{h.description}*
+                                        </p>
+                                        {h.actionTaken && (
+                                            <p style={{ marginTop: '5px', color: '#3182ce' }}>
+                                                **Fix/Action Taken:** {h.actionTaken}
+                                            </p>
+                                        )}
+                                        <small style={{ display: 'block', marginTop: '5px', color: '#718096' }}>
+                                            Booked on: {new Date(h.createdAt).toLocaleString()} by **{h.createdBy}**
+                                        </small>
+                                    </li>
+                                ))
+                            )}
                         </ul>
                     </div>
                 </div>
@@ -853,5 +995,6 @@ function App() {
         </div>
     );
 }
+//checkinggit 
 
 export default App;

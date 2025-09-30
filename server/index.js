@@ -1,224 +1,146 @@
-// server/index.js
+﻿// server/index.js
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
+const admin = require("firebase-admin");
 
+const serviceAccount = require("./serviceAccountKey.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+});
+
+const db = admin.firestore();
 const app = express();
 const port = 5000;
 
 app.use(cors());
 app.use(express.json());
 
-// ---------------------
-// CONFIG
-// ---------------------
+// ---------------------------
+// EMAIL CONFIG
+// ---------------------------
 const emailConfig = {
-    Username: "kgomotsosele80@gmail.com", // Admin / sender
+    Username: "kgomotsosele80@gmail.com", // Admin sender
     Password: "ensfuzffghnszohk",        // Gmail App Password
     SmtpServer: "smtp.gmail.com",
-    Port: 587
+    Port: 587,
 };
 
-// ---------------------
-// In-memory "DB"
-// ---------------------
-let tickets = []; // { id, title, description, category, priority, product, status, createdBy(email), createdAt, actionTaken, messages }
-let users = [
-    // hardcoded admin and user for initial testing
-    { email: emailConfig.Username, password: "admin123", role: "Admin" },
-    { email: "selekeamogetsoe@gmail.com", password: "1234", role: "User" },
-    { email: "keamogetsoeforex@gmail.com", password: "1234", role: "User" }
-];
-
-// ---------------------
-// Nodemailer transporter
-// ---------------------
 const transporter = nodemailer.createTransport({
     host: emailConfig.SmtpServer,
     port: emailConfig.Port,
-    secure: false, // STARTTLS
-    auth: {
-        user: emailConfig.Username,
-        pass: emailConfig.Password
-    },
-    tls: { rejectUnauthorized: false }
+    secure: false,
+    auth: { user: emailConfig.Username, pass: emailConfig.Password },
+    tls: { rejectUnauthorized: false },
 });
 
-// helper to send mail
-async function sendMail({ to, subject, text, html }) {
-    const mail = {
-        from: `"Support System" <${emailConfig.Username}>`,
+async function sendMail({ to, subject, text }) {
+    return transporter.sendMail({
+        from: `"Support Ticket System" <${emailConfig.Username}>`,
         to,
         subject,
         text,
-        html
-    };
-    return transporter.sendMail(mail);
+    });
 }
 
-// ---------------------
+// ---------------------------
+// FIRESTORE REFERENCES
+// ---------------------------
+const usersRef = db.collection("users");
+const ticketsRef = db.collection("tickets");
+
+// Helper functions
+async function getUser(email) {
+    const doc = await usersRef.doc(email).get();
+    return doc.exists ? doc.data() : null;
+}
+async function saveUser(user) {
+    await usersRef.doc(user.email).set(user, { merge: true });
+    return user;
+}
+
+// ---------------------------
 // ROUTES
-// ---------------------
+// ---------------------------
+app.get("/", (req, res) => res.send("✅ Firebase Support System Backend Running"));
 
-// simple root
-app.get("/", (req, res) => res.send(""));
-
-// ---------------------
-// Authentication
-// ---------------------
-
-// User login (email + password)
-app.post("/login", (req, res) => {
+// LOGIN (User)
+app.post("/login", async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ success: false, message: "Missing email/password" });
-
-    const user = users.find(u => u.email === email && u.password === password && u.role === "User");
-    if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
-
-    return res.json({ success: true, user: { email: user.email, role: user.role } });
+    const user = await getUser(email);
+    if (!user || user.password !== password || user.role !== "User")
+        return res.status(401).json({ success: false, message: "Invalid credentials" });
+    res.json({ success: true, user: { email: user.email, role: user.role } });
 });
 
-// Admin login
-app.post("/admin/login", (req, res) => {
+// LOGIN (Admin)
+app.post("/admin/login", async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ success: false, message: "Missing email/password" });
-
-    const admin = users.find(u => u.email === email && u.password === password && u.role === "Admin");
-    if (!admin) return res.status(401).json({ success: false, message: "Invalid admin credentials" });
-
-    return res.json({ success: true, user: { email: admin.email, role: admin.role } });
+    const user = await getUser(email);
+    if (!user || user.password !== password || user.role !== "Admin")
+        return res.status(401).json({ success: false, message: "Invalid admin credentials" });
+    res.json({ success: true, user: { email: user.email, role: user.role } });
 });
 
-// Admin: register user (admin creates users)
+// REGISTER NEW USER (Admin only)
 app.post("/admin/register", async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ success: false, message: "Email and password required" });
-
-    const exists = users.find(u => u.email === email);
-    if (exists) return res.status(400).json({ success: false, message: "User already exists" });
+    const existing = await getUser(email);
+    if (existing)
+        return res.status(400).json({ success: false, message: "User already exists" });
 
     const newUser = { email, password, role: "User" };
-    users.push(newUser);
+    await saveUser(newUser);
 
-    try {
-        await sendMail({
-            to: email,
-            subject: "Your account has been created",
-            text: `Hello,\n\nAn account was created for you.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease log in at the support portal.`
-        });
-        console.log(`Registration email sent to ${email}`);
-    } catch (err) {
-        console.error("Email error on registration:", err);
-    }
+    await sendMail({
+        to: email,
+        subject: "Account Created",
+        text: `Hello,\nYour support portal account has been created.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease log in at the portal.`,
+    });
 
-    return res.json({ success: true, user: newUser });
+    res.json({ success: true, user: newUser });
 });
 
-// Admin: Get all users (excluding admin)
-app.get("/admin/users", (req, res) => {
-    // Return all users except the admin
-    const nonAdminUsers = users.filter(user => user.role !== "Admin");
-    return res.json(nonAdminUsers);
+// GET ALL USERS (Admin)
+app.get("/admin/users", async (req, res) => {
+    const snapshot = await usersRef.get();
+    const users = snapshot.docs.map((d) => d.data());
+    res.json(users.filter((u) => u.role !== "Admin"));
 });
 
-// Admin: Deregister user
-app.delete("/admin/users/:email", (req, res) => {
+// DELETE USER (Admin)
+app.delete("/admin/users/:email", async (req, res) => {
     const { email } = req.params;
-    
-    // Prevent admin from deregistering themselves
-    if (email === emailConfig.Username) {
-        return res.status(400).json({ success: false, message: "Cannot deregister admin user" });
-    }
+    await usersRef.doc(email).delete();
 
-    const userIndex = users.findIndex(u => u.email === email);
-    if (userIndex === -1) {
-        return res.status(404).json({ success: false, message: "User not found" });
-    }
+    const userTickets = await ticketsRef.where("createdBy", "==", email).get();
+    const batch = db.batch();
+    userTickets.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
 
-    // Remove user's tickets
-    tickets = tickets.filter(ticket => ticket.createdBy !== email);
-    
-    // Remove user
-    users.splice(userIndex, 1);
-
-    console.log(`User ${email} deregistered successfully`);
-    return res.json({ success: true, message: "User deregistered successfully" });
+    res.json({ success: true, message: "User and their tickets deleted" });
 });
 
-// User password update
-app.put("/user/update-password", (req, res) => {
+// UPDATE PASSWORD
+app.put("/user/update-password", async (req, res) => {
     const { email, currentPassword, newPassword } = req.body;
-    
-    // 1. Basic validation
-    if (!email || !currentPassword || !newPassword) {
-        return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
+    const user = await getUser(email);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (user.password !== currentPassword)
+        return res.status(401).json({ success: false, message: "Incorrect password" });
 
-    // 2. Find the user
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // 3. Verify the current password
-    if (user.password !== currentPassword) {
-        return res.status(401).json({ success: false, message: "Incorrect current password" });
-    }
-
-    // 4. Update the password
-    user.password = newPassword;
-    console.log(`Password for user ${email} updated successfully.`);
-    
-    // 5. Respond to the client
-    return res.json({ success: true, message: "Password updated successfully" });
+    await usersRef.doc(email).update({ password: newPassword });
+    res.json({ success: true, message: "Password updated successfully" });
 });
 
-// User forgot password
-app.post("/forgot-password", async (req, res) => {
-    const { email } = req.body;
-    const user = users.find(u => u.email === email);
-
-    if (!user) {
-        // Send a generic message to prevent user enumeration
-        return res.json({ success: true, message: "If an account with that email exists, a password reset email has been sent." });
-    }
-
-    // Generate a new temporary password
-    const temporaryPassword = Math.random().toString(36).slice(-8);
-    user.password = temporaryPassword; // Update the in-memory password
-
-    try {
-        await sendMail({
-            to: email,
-            subject: "Your Temporary Password",
-            text: `Hello,\n\nYour temporary password is: ${temporaryPassword}\n\nPlease use this to log in and change your password immediately.`
-        });
-        return res.json({ success: true, message: "A temporary password has been sent to your email." });
-    } catch (err) {
-        console.error("Email error on password reset:", err);
-        return res.status(500).json({ success: false, message: "Failed to send reset email. Please try again." });
-    }
-});
-
-// ---------------------
-// Ticket endpoints
-// ---------------------
-
-// Create ticket
+// CREATE TICKET
 app.post("/tickets", async (req, res) => {
     const { title, description, category, priority, email, product } = req.body;
-    if (!title || !description || !category || !priority || !email || !product) {
-        return res.status(400).json({ success: false, message: "All fields required: title, description, category, priority, email, product" });
-    }
-
-    // basic user existence check (since registration exists)
-    const user = users.find(u => u.email === email && u.role === "User");
-    if (!user) {
-        return res.status(400).json({ success: false, message: "User not found. Ask admin to register the user first." });
-    }
+    const user = await getUser(email);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     const newTicket = {
-        id: tickets.length + 1,
         title,
         description,
         category,
@@ -227,133 +149,97 @@ app.post("/tickets", async (req, res) => {
         status: "Open",
         createdBy: email,
         createdAt: new Date().toISOString(),
-        actionTaken: null,
-        messages: [] // New field to store admin communication
+        messages: [],
+        // actionTaken field is added here for consistency, though it's typically set on update
+        actionTaken: "",
     };
 
-    tickets.push(newTicket);
+    const ref = await ticketsRef.add(newTicket);
+    newTicket.id = ref.id;
+    await ref.update({ id: ref.id });
 
-    // Email admin and user...
-    try {
-        // admin
-        await sendMail({
-            to: emailConfig.Username,
-            subject: `New Ticket Created (Ref #${newTicket.id})`,
-            text: `A new ticket was created.\n\nRef #: ${newTicket.id}\nProduct: ${product}\nTitle: ${title}\nDescription: ${description}\nPriority: ${priority}\nCategory: ${category}\nCreated By: ${email}`
-        });
-        // user confirmation
-        await sendMail({
-            to: email,
-            subject: `Ticket Confirmation - Ref #${newTicket.id}`,
-            text: `Hello,\n\nYour ticket has been created.\nRef #: ${newTicket.id}\nProduct: ${product}\nTitle: ${title}\nStatus: Open\n\nWe will update you when it is addressed.`
-        });
-        console.log(`Emails sent: admin->${emailConfig.Username}, user->${email}`);
-    } catch (err) {
-        console.error("Email error on ticket creation:", err);
-    }
+    await sendMail({
+        to: email,
+        subject: `Ticket Created (Ref #${ref.id})`,
+        text: `Hello,\nYour ticket '${title}' has been created.\nReference #: ${ref.id}\nStatus: Open`,
+    });
 
-    return res.json({ success: true, ticket: newTicket });
+    res.json({ success: true, ticket: newTicket });
 });
 
-// Get all tickets for a user
-app.get("/tickets/:email", (req, res) => {
-    const { email } = req.params;
-    const userTickets = tickets.filter(t => t.createdBy === email);
-    return res.json(userTickets);
+// GET USER TICKETS
+app.get("/tickets/:email", async (req, res) => {
+    const snapshot = await ticketsRef.where("createdBy", "==", req.params.email).get();
+    res.json(snapshot.docs.map((d) => d.data()));
 });
 
-// Get ticket details by id
-app.get("/ticket/:id", (req, res) => {
-    const { id } = req.params;
-    const ticket = tickets.find(t => t.id === parseInt(id));
-    if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
-    return res.json(ticket);
+// ADMIN: GET ALL TICKETS
+app.get("/admin/tickets", async (req, res) => {
+    const snapshot = await ticketsRef.get();
+    res.json(snapshot.docs.map((d) => d.data()));
 });
 
-// Admin: Get all tickets
-app.get("/admin/tickets", (req, res) => {
-    return res.json(tickets);
+// ADMIN: GET SINGLE TICKET (Needed for Admin communication update logic in App.js)
+app.get("/ticket/:id", async (req, res) => {
+    const doc = await ticketsRef.doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: "Ticket not found" });
+    res.json(doc.data());
 });
 
-// Admin: Get tickets by product name
-app.get("/admin/tickets/product/:productName", (req, res) => {
+// ADMIN: GET TICKETS BY PRODUCT (For history feature: What was the problem/date/fix)
+app.get("/admin/tickets/product/:productName", async (req, res) => {
     const { productName } = req.params;
-    const productTickets = tickets.filter(t => t.product.toLowerCase().includes(productName.toLowerCase()));
-    return res.json(productTickets);
+    // Query for all tickets for the specified product, ordered by creation date (newest first)
+    const snapshot = await ticketsRef
+        .where("product", "==", productName)
+        .orderBy("createdAt", "desc")
+        .get();
+
+    // The data() contains: title, description (the problem), status, createdBy, createdAt (date booked), and actionTaken (the fix)
+    res.json(snapshot.docs.map((d) => d.data()));
 });
 
-// Admin: Update ticket status and action taken
+// ADMIN: UPDATE TICKET STATUS
 app.put("/admin/tickets/:id", async (req, res) => {
     const { id } = req.params;
+    // 'actionTaken' is what you did to fix the problem.
     const { status, actionTaken } = req.body;
-    const ticket = tickets.find(t => t.id === parseInt(id));
-    if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
+    const doc = ticketsRef.doc(id);
 
-    ticket.status = status;
-    ticket.actionTaken = actionTaken;
-    console.log(`Ticket ${id} updated: Status=${status}, Action Taken=${actionTaken}`);
+    // Ensure actionTaken is saved on update
+    await doc.update({ status, actionTaken });
 
-    try {
-        await sendMail({
-            to: ticket.createdBy,
-            subject: `Ticket Update - Ref #${ticket.id}`,
-            text: `Hello,\n\nYour ticket with reference number #${ticket.id} has been updated.\nNew Status: ${status}\nAction Taken: ${actionTaken}`
-        });
-        console.log(`Update email sent to user ${ticket.createdBy}`);
-    } catch (err) {
-        console.error("Email error on ticket update:", err);
-    }
+    const updated = (await doc.get()).data();
+    await sendMail({
+        to: updated.createdBy,
+        subject: `Ticket Updated (Ref #${id})`,
+        text: `Your ticket has been updated.\nNew Status: ${status}\nAction Taken: ${actionTaken || "None"}`,
+    });
 
-    return res.json({ success: true, ticket });
+    res.json({ success: true, ticket: updated });
 });
 
-// Admin: Mark for collection and send email
-app.post("/admin/tickets/:id/collect", async (req, res) => {
-    const { id } = req.params;
-    const ticket = tickets.find(t => t.id === parseInt(id));
-    if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
-    
-    ticket.status = "Ready for Collection";
-    console.log(`Ticket ${id} marked for collection.`);
-
-    try {
-        await sendMail({
-            to: ticket.createdBy,
-            subject: `Ticket Ready for Collection - Ref #${ticket.id}`,
-            text: `Hello,\n\nYour ticket with reference number #${ticket.id} is now Ready for Collection.`
-        });
-        console.log(`Collection email sent to user ${ticket.createdBy}`);
-    } catch (err) {
-        console.error("Email error on collection:", err);
-    }
-
-    return res.json({ success: true, ticket });
-});
-
-// Admin: Add a custom message
+// ADMIN: ADD MESSAGE
 app.post("/admin/tickets/:id/message", async (req, res) => {
     const { id } = req.params;
     const { message } = req.body;
-    const ticket = tickets.find(t => t.id === parseInt(id));
-    if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
+    const doc = ticketsRef.doc(id);
+    const ticket = (await doc.get()).data();
 
-    const newMessage = { text: message, timestamp: new Date().toISOString() };
-    ticket.messages.push(newMessage);
-    console.log(`Custom message added to ticket ${id}.`);
-    
-    try {
-        const userEmail = ticket.createdBy;
-        const subject = `New Message on your Ticket (Ref #${ticket.id})`;
-        const text = `Hello,\n\nYou have a new message on your ticket Ref #${ticket.id}:\n\n${message}\n\nSupport Team`;
-        await sendMail({ to: userEmail, subject, text });
-        console.log(`Custom message email sent to ${userEmail}`);
-    } catch (err) {
-        console.error("Email error on custom message:", err);
-    }
+    const newMsg = { text: message, timestamp: new Date().toISOString() };
+    await doc.update({
+        messages: admin.firestore.FieldValue.arrayUnion(newMsg),
+    });
 
-    return res.json({ success: true });
+    await sendMail({
+        to: ticket.createdBy,
+        subject: `New Message on Your Ticket (Ref #${id})`,
+        text: message,
+    });
+
+    res.json({ success: true });
 });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-});
+app.listen(port, () =>
+    console.log(`✅ Server running with Firestore at http://localhost:${port}`)
+);
