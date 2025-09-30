@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./images/logo-removebg-preview.png";
 
-// Add your live backend URL here (Remember to replace this with your actual Render URL later)
+// FIXED: Removed the trailing slash to prevent the 404 double-slash error (//register)
 const API_BASE_URL = "https://support-ticket-system-igce.onrender.com";
 
 function App() {
@@ -13,12 +13,6 @@ function App() {
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
     const [loginTitle, setLoginTitle] = useState("Welcome to our Support Portal");
-
-    // NEW STATES FOR REGISTRATION (Temporary fix for password hashing)
-    const [regEmail, setRegEmail] = useState("");
-    const [regPassword, setRegPassword] = useState("");
-    const [regConfirmation, setRegConfirmation] = useState("");
-    const [isRegistering, setIsRegistering] = useState(false); // Toggle view
 
     // User state
     const [tickets, setTickets] = useState([]);
@@ -36,131 +30,82 @@ function App() {
     const [userView, setUserView] = useState("tickets"); // "tickets" or "passwordChange"
 
     // Admin state
-    const [allTickets, setAllTickets] = useState([]); // Master list of all tickets
-    const [displayedTickets, setDisplayedTickets] = useState([]); // Filtered list for display
-    // const [groupedTickets, setGroupedTickets] = useState({}); // REMOVED: No longer grouping in main view
-    const [filterStatus, setFilterStatus] = useState("All"); // Admin status filter
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedTicket, setSelectedTicket] = useState(null); // For admin ticket details popup
-    const [productHistoryPopup, setProductHistoryPopup] = useState(false);
-    const [productHistory, setProductHistory] = useState([]);
-    const [historyProductName, setHistoryProductName] = useState("");
+    const [allTickets, setAllTickets] = useState([]);
+    const [filterStatus, setFilterStatus] = useState("All");
+    const [selectedTicket, setSelectedTicket] = useState(null);
+    const [actionTaken, setActionTaken] = useState("");
+    const [newStatus, setNewStatus] = useState("");
+    const [adminView, setAdminView] = useState("list"); // 'list' or 'details'
 
-    const [users, setUsers] = useState([]);
-    const [adminView, setAdminView] = useState("tickets"); // "tickets" or "userManagement"
+    // Admin Email Constant
+    const adminEmail = "kgomotsosele80@gmail.com";
 
-    // New state for header enhancements
-    const [showQuickMenu, setShowQuickMenu] = useState(false);
-    const [unreadTickets, setUnreadTickets] = useState(0);
+    // Helper Functions
+    const getUser = async (userEmail) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/${userEmail}`);
+            if (response.ok) {
+                return await response.json();
+            }
+            return null;
+        } catch (error) {
+            console.error("Error fetching user data:", error);
+            return null;
+        }
+    };
 
-    // Helper function for priority dot color (Req 2)
     const getPriorityDotClass = (priority) => {
-        const p = priority ? priority.toLowerCase() : "low";
-        if (p === "high") return "dot-high"; // Red
-        if (p === "medium") return "dot-medium"; // Amber
-        return "dot-low"; // Green
+        switch (priority) {
+            case "High":
+                return "priority-high";
+            case "Medium":
+                return "priority-medium";
+            case "Low":
+                return "priority-low";
+            default:
+                return "";
+        }
     };
 
-    // Helper function for category abbreviation (Req 3)
-    const getCategoryAbbreviation = (category) => {
-        if (!category) return "";
-        const c = category.toLowerCase();
-        if (c.includes("technical")) return "T";
-        if (c.includes("general")) return "G";
-        if (c.includes("billing")) return "B";
-        return "";
-    };
+    // -----------------------------------------------------------------------
+    // AUTHENTICATION LOGIC
+    // -----------------------------------------------------------------------
 
-
-    useEffect(() => {
-        fetch(`${API_BASE_URL}/`)
-            .then((res) => res.text())
-            .then((data) => setMessage(data));
-    }, []);
-
-    // RESTORED useEffect: Filters tickets and sets unread count (no grouping)
-    useEffect(() => {
-        let filtered = [...allTickets];
-
-        if (searchQuery) {
-            // Filter by product only if it exists
-            filtered = filtered.filter(t => t.product && t.product.toLowerCase().includes(searchQuery.toLowerCase()));
-        }
-
-        if (filterStatus !== "All") {
-            filtered = filtered.filter(t => t.status === filterStatus);
-        }
-
-        setDisplayedTickets(filtered);
-
-        // Update unread tickets count for admin
-        if (role === "Admin") {
-            const newTickets = allTickets.filter(t => t.status === "Open").length;
-            setUnreadTickets(newTickets);
-        }
-    }, [allTickets, searchQuery, filterStatus, role]);
-
-
-    // ------------------- LOGIN -------------------
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoginError("");
-        setPasswordChangeMessage("");
-
-        const adminEmail = "kgomotsosele80@gmail.com";
-        const loginUrl = email === adminEmail
-            ? `${API_BASE_URL}/admin/login`
-            : `${API_BASE_URL}/login`;
+        setLoginTitle("Signing In...");
 
         try {
-            const res = await fetch(loginUrl, {
+            const loginUrl = email === adminEmail
+                ? `${API_BASE_URL}/admin/login`
+                : `${API_BASE_URL}/login`;
+
+            const response = await fetch(loginUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
 
-            if (!res.ok) throw new Error("Invalid credentials");
-            const data = await res.json();
-
-            if (data.user.role === "Admin") {
-                setLoginTitle("Admin Login");
+            if (response.ok) {
+                const data = await response.json();
+                setIsLoggedIn(true);
+                setRole(data.role);
+                setMessage(`Welcome back, ${email}!`);
+                setLoginTitle(data.role === "Admin" ? "Admin Portal" : "User Dashboard");
+                if (data.role === "User") {
+                    fetchUserTickets(email);
+                } else if (data.role === "Admin") {
+                    fetchAllTickets();
+                }
             } else {
-                setLoginTitle("User Login");
+                setLoginError("Invalid email or password");
+                setLoginTitle("Welcome to our Support Portal");
             }
-
-            setIsLoggedIn(true);
-            setRole(data.user.role);
-            setEmail(data.user.email);
-
-            if (data.user.role === "User") {
-                fetchTickets(data.user.email);
-            } else {
-                fetchAllTickets();
-                fetchUsers();
-            }
-        } catch (err) {
-            setLoginError("Invalid email or password");
+        } catch (error) {
+            setLoginError("Network error. Please check your connection and the server status.");
+            setLoginTitle("Welcome to our Support Portal");
         }
-    };
-
-    const fetchTickets = (userEmail) => {
-        fetch(`${API_BASE_URL}/tickets/${userEmail}`)
-            .then((res) => res.json())
-            .then((data) => setTickets(data));
-    };
-
-    const fetchAllTickets = () => {
-        fetch(`${API_BASE_URL}/admin/tickets`)
-            .then((res) => res.json())
-            .then((data) => {
-                setAllTickets(data);
-            });
-    };
-
-    const fetchUsers = () => {
-        fetch(`${API_BASE_URL}/admin/users`)
-            .then((res) => res.json())
-            .then((data) => setUsers(data));
     };
 
     const handleLogout = () => {
@@ -168,887 +113,464 @@ function App() {
         setRole("");
         setEmail("");
         setPassword("");
+        setLoginError("");
+        setLoginTitle("Welcome to our Support Portal");
+        setMessage("");
+        // Clear all states specific to views/roles
         setTickets([]);
         setAllTickets([]);
-        setDisplayedTickets([]);
-        // setGroupedTickets({}); // Removed
-        setConfirmation("");
-        setLoginError("");
-        setFilterStatus("All");
-        setSearchQuery("");
         setSelectedTicket(null);
-        setProductHistoryPopup(false);
-        setProductHistory([]);
-        setHistoryProductName("");
-        setShowQuickMenu(false);
-        setUnreadTickets(0);
-        setShowQuickActions(false); // Reset user quick actions
-        setUserView("tickets"); // Reset user view
-        setAdminView("tickets"); // Reset admin view
-        // NEW: Reset temporary registration states
-        setRegEmail("");
-        setRegPassword("");
-        setRegConfirmation("");
-        setIsRegistering(false);
     };
+
+    // -----------------------------------------------------------------------
+    // PASSWORD CHANGE LOGIC (User)
+    // -----------------------------------------------------------------------
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();
         setPasswordChangeMessage("");
 
-        if (newPassword.length < 4) {
-            setPasswordChangeMessage("New password must be at least 4 characters.");
+        if (newPassword.length < 6) {
+            setPasswordChangeMessage("New password must be at least 6 characters.");
             return;
         }
 
-        const res = await fetch(`${API_BASE_URL}/user/update-password`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, currentPassword, newPassword }),
-        });
-        const data = await res.json();
-        if (data.success) {
-            setPasswordChangeMessage("Password updated successfully!");
-            setCurrentPassword("");
-            setNewPassword("");
-            setPassword(newPassword);
-        } else {
-            setPasswordChangeMessage(data.message);
-        }
-    };
-
-    // ------------------- LOGIN/REGISTRATION TEMP FIX -------------------
-
-    // NEW: Function to handle temporary registration
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setRegConfirmation("");
-        setLoginError(""); // Clear login errors when registering
-
-        if (regPassword.length < 4) {
-             setRegConfirmation("❌ Password must be at least 4 characters.");
-             return;
-        }
-
-        const res = await fetch(`${API_BASE_URL}/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: regEmail, password: regPassword }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-            setRegConfirmation("✅ Registration successful! The password hash is now in Firestore. You can now copy it. Go back to Login.");
-            setRegEmail("");
-            setRegPassword("");
-        } else {
-            setRegConfirmation(`❌ Registration failed: ${data.message}`);
-        }
-    };
-
-    // ------------------- USER -------------------
-    const handleCreateTicket = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        const res = await fetch(`${API_BASE_URL}/tickets`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, description, category, priority, email, product }),
-        });
-        const data = await res.json();
-        setLoading(false);
-
-        if (data.success) {
-            setTickets([...tickets, data.ticket]);
-            setConfirmation(`Ticket created successfully! Ref #: ${data.ticket.id}`);
-            setTitle("");
-            setDescription("");
-            setCategory("General");
-            setPriority("Low");
-            setProduct("");
-        }
-    };
-
-    // FIXED: Now uses URL encoding for robustness and includes error handling for the index issue
-    const openAdminProductHistoryPopup = async (productName) => {
-        setHistoryProductName(productName);
-        setProductHistory([]); // Clear previous history
-        setProductHistoryPopup(true); // Open the popup immediately with a loading state
-
         try {
-            // CRITICAL FIX: Encode the product name for the URL to handle spaces/special characters
-            const encodedProductName = encodeURIComponent(productName);
-            const res = await fetch(`${API_BASE_URL}/admin/tickets/product/${encodedProductName}`);
+            const response = await fetch(`${API_BASE_URL}/password-change`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, currentPassword, newPassword }),
+            });
 
-            if (!res.ok) {
-                // Throw error if response status is not 2xx
-                const errorText = await res.text();
-                throw new Error(`Failed to fetch history (Status: ${res.status}): ${errorText}`);
+            if (response.ok) {
+                setPasswordChangeMessage("✅ Password changed successfully!");
+                setCurrentPassword("");
+                setNewPassword("");
+            } else {
+                const error = await response.json();
+                setPasswordChangeMessage(`❌ Error: ${error.message || "Could not change password."}`);
             }
-
-            const data = await res.json();
-            setProductHistory(data);
-
         } catch (error) {
-            console.error("Failed to fetch product history:", error);
-            // CRITICAL FIX: Alert the user about the most common failure (Firebase Index)
-            window.alert(`Failed to load product history for "${productName}". Please check the console for details.\n\nNOTE: If the error mentions 'FAILED_PRECONDITION', you need to create a composite index in your Firebase console.`);
-            setProductHistoryPopup(false); // Close popup on failure
-            setProductHistory([]); // Clear history on failure
+            setPasswordChangeMessage("Network error during password change.");
         }
     };
 
-    const openTicketDetailsPopup = async (ticket) => {
-        // For Admin, it's better to fetch the latest details
-        if (role === "Admin" && ticket.id) {
-            const res = await fetch(`${API_BASE_URL}/ticket/${ticket.id}`);
-            if (res.ok) {
-                const latestTicket = await res.json();
-                setSelectedTicket(latestTicket);
-                return;
+    // -----------------------------------------------------------------------
+    // USER TICKET LOGIC
+    // -----------------------------------------------------------------------
+
+    const fetchUserTickets = async (userEmail) => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/tickets/${userEmail}`);
+            if (response.ok) {
+                const data = await response.json();
+                setTickets(data);
+            } else {
+                console.error("Failed to fetch user tickets");
             }
+        } catch (error) {
+            console.error("Network error fetching user tickets:", error);
+        } finally {
+            setLoading(false);
         }
-        setSelectedTicket(ticket);
     };
 
-    // ------------------- ADMIN -------------------
-    const handleAdminSearch = (e) => {
+    const handleTicketSubmit = async (e) => {
         e.preventDefault();
-        // Search logic is handled in the useEffect based on searchQuery state
-    };
+        setConfirmation("");
 
-    const closeTicketDetailsPopup = () => {
-        setSelectedTicket(null);
-    };
-
-    // Unified function to handle status updates
-    const handleUpdateTicket = async (id, status, actionTaken = "") => {
-        // Prompt for action taken if status is 'In Progress', 'Collected', or 'Closed'
-        let finalActionTaken = actionTaken;
-        if ((status === 'In Progress' || status === 'Collected' || status === 'Closed' || status === 'Ready for Collection') && !actionTaken) {
-            finalActionTaken = window.prompt(`Enter action taken (the fix) for status: ${status}:`);
-            if (finalActionTaken === null || finalActionTaken.trim() === "") {
-                // If user cancels or enters empty string, use a default message.
-                finalActionTaken = `Ticket status updated to ${status}.`;
-            }
-        }
-
-        await fetch(`${API_BASE_URL}/admin/tickets/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status, actionTaken: finalActionTaken }),
-        });
-        fetchAllTickets(); // Reloads all tickets, triggering the filtering
-        if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
-            const updatedTicket = await res.json();
-            setSelectedTicket(updatedTicket);
-        }
-    };
-
-    const handleCommunicate = async (id) => {
-        const message = window.prompt("Enter custom message to user:");
-        if (!message) return;
-        await fetch(`${API_BASE_URL}/admin/tickets/${id}/message`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message }),
-        });
-        fetchAllTickets();
-        if (selectedTicket && selectedTicket.id === id) {
-            const res = await fetch(`${API_BASE_URL}/ticket/${id}`);
-            const updatedTicket = await res.json();
-            setSelectedTicket(updatedTicket);
-        }
-    };
-
-    const handleRegisterUser = async () => {
-        const userEmail = window.prompt("Enter new user's email:");
-        if (!userEmail) return;
-
-        const autoPassword = Math.random().toString(36).slice(-8);
+        const newTicket = {
+            createdBy: email,
+            title,
+            description,
+            category,
+            priority,
+            product,
+        };
 
         try {
-            const res = await fetch(`${API_BASE_URL}/admin/register`, {
+            const response = await fetch(`${API_BASE_URL}/tickets`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: userEmail, password: autoPassword }),
+                body: JSON.stringify(newTicket),
             });
 
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Server responded with an error: ${res.status} - ${errorText}`);
-            }
-
-            const data = await res.json();
-
-            if (data.success) {
-                window.alert(`User ${userEmail} registered successfully! An auto-generated password (${autoPassword}) has been emailed to them.`);
-                fetchUsers();
+            if (response.ok) {
+                const data = await response.json();
+                setConfirmation(`✅ Ticket #${data.id} submitted successfully!`);
+                setTitle("");
+                setDescription("");
+                setCategory("General");
+                setPriority("Low");
+                setProduct("");
+                fetchUserTickets(email); // Refresh the list
             } else {
-                window.alert(`Error: ${data.message}`);
+                setConfirmation("❌ Failed to submit ticket.");
             }
-        } catch (err) {
-            console.error("Failed to register user:", err);
-            window.alert("Registration failed. Please check the console for details.");
+        } catch (error) {
+            setConfirmation("Network error during ticket submission.");
         }
     };
 
-    const handleDeregisterUser = async (userEmail) => {
-        if (!window.confirm(`Are you sure you want to deregister ${userEmail}? This action cannot be undone.`)) {
-            return;
+    // -----------------------------------------------------------------------
+    // ADMIN TICKET LOGIC
+    // -----------------------------------------------------------------------
+
+    const fetchAllTickets = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/tickets`);
+            if (response.ok) {
+                const data = await response.json();
+                setAllTickets(data);
+            } else {
+                console.error("Failed to fetch all tickets");
+            }
+        } catch (error) {
+            console.error("Network error fetching all tickets:", error);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const handleUpdateTicket = async (e) => {
+        e.preventDefault();
+        if (!selectedTicket || !newStatus) return;
 
         try {
-            const res = await fetch(`${API_BASE_URL}/admin/users/${userEmail}`, {
-                method: "DELETE",
+            const response = await fetch(`${API_BASE_URL}/admin/tickets/${selectedTicket.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus, actionTaken: actionTaken }),
             });
 
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Server responded with an error: ${res.status} - ${errorText}`);
-            }
-
-            const data = await res.json();
-
-            if (data.success) {
-                window.alert(`User ${userEmail} deregistered successfully!`);
-                fetchUsers();
+            if (response.ok) {
+                alert(`Ticket #${selectedTicket.id} updated successfully to ${newStatus}.`);
+                // Clear state and refresh list
+                setAdminView("list");
+                setSelectedTicket(null);
                 fetchAllTickets();
             } else {
-                window.alert(`Error: ${data.message}`);
+                alert("Failed to update ticket.");
             }
-        } catch (err) {
-            console.error("Failed to deregister user:", err);
-            window.alert("Deregistration failed. Please check the console for details.");
+        } catch (error) {
+            alert("Network error updating ticket.");
         }
     };
 
-    // THE handleForgotPassword FUNCTION WAS REMOVED HERE
+    const filteredTickets = allTickets.filter(
+        (t) => filterStatus === "All" || t.status === filterStatus
+    );
 
-    // ------------------- RENDER -------------------
+    // -----------------------------------------------------------------------
+    // RENDER LOGIC
+    // -----------------------------------------------------------------------
+
     if (!isLoggedIn) {
         return (
-            <div className="login-page">
-                <div className="login-container">
-                    <h1 className="system-title">Support Ticket System</h1>
-                    <p className="system-subtitle">Manage your support requests efficiently.</p>
-                    {/* UPDATED: Title changes based on registration state */}
-                    <h2 className="login-title">{isRegistering ? "Register New User (Admin Fix)" : loginTitle}</h2>
+            <div className="app-container">
+                <header className="header">
+                    <img src={logo} alt="Capaciti Logo" className="logo" />
+                    <h1>{loginTitle}</h1>
+                </header>
 
-                    {/* UPDATED: Show Login/Registration messages */}
-                    {!isRegistering && loginError && <div className="error-message">{loginError}</div>}
-                    {regConfirmation && <div className={`message ${regConfirmation.startsWith('❌') ? 'error-message' : 'success-message'}`}>{regConfirmation}</div>}
+                <main className="login-container">
+                    <form onSubmit={handleLogin} className="login-form">
+                        <h2>Login</h2>
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                        <input
+                            type="password"
+                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                        <button type="submit">Login</button>
+                        {loginError && <p className="error-message">{loginError}</p>}
+                    </form>
+                    
+                    {/* The Register/Get Hash button has been REMOVED here */}
 
+                </main>
 
-                    {/* --- Login Form (Displayed when NOT registering) --- */}
-                    {!isRegistering && (
-                        <form className="login-form" onSubmit={handleLogin}>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="Enter your email address"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Sign In
-                            </button>
-                        </form>
-                    )}
-
-                    {/* --- Registration Form (Displayed when registering) --- */}
-                    {isRegistering && (
-                        <form className="login-form" onSubmit={handleRegister}>
-                            <p style={{ color: 'red', textAlign: 'center', marginBottom: '15px' }}>
-                                **USE THIS TO GENERATE A HASHED PASSWORD ONLY**
-                            </p>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="email"
-                                    placeholder="New User Email (e.g., temp@test.com)"
-                                    value={regEmail}
-                                    onChange={(e) => setRegEmail(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">✉️</span>
-                            </div>
-                            <div className="form-group">
-                                <input
-                                    className="form-input"
-                                    type="password"
-                                    placeholder="Password to hash (e.g., admin123)"
-                                    value={regPassword}
-                                    onChange={(e) => setRegPassword(e.target.value)}
-                                    required
-                                />
-                                <span className="form-input-icon">🔒</span>
-                            </div>
-                            <button className="login-button" type="submit">
-                                Register and Get Hash
-                            </button>
-                        </form>
-                    )}
-
-                    <div className="login-footer">
-                        <button
-                            className="toggle-button"
-                            onClick={() => {
-                                setIsRegistering(!isRegistering);
-                                setLoginError("");
-                                setRegConfirmation("");
-                            }}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#007bff',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                            }}
-                        >
-                            {isRegistering ? "← Back to Login" : "Fix Admin Login? Register/Get Hash"}
-                        </button>
-                    </div>
-                </div>
+                <footer className="footer">
+                    <p>&copy; 2025 Capaciti. All Rights Reserved.</p>
+                </footer>
             </div>
         );
     }
 
-    return (
-        <div className="app-content">
-            {/* Enhanced Header */}
-            <header className="header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <img src={logo} alt="Company Logo" className="header-logo" />
-                    <div style={{ borderLeft: '2px solid #F25c54', height: '40px' }}></div>
-                    <div>
-                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#000035' }}>
-                            Support Portal
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#718096' }}>
-                            {role === 'Admin' ? 'Administrator Dashboard' : 'User Support Center'}
-                        </div>
-                    </div>
+    // -----------------------------------------------------------------------
+    // ADMIN VIEW
+    // -----------------------------------------------------------------------
+
+    if (role === "Admin") {
+        const TicketList = () => (
+            <>
+                <h2>All Tickets ({allTickets.length})</h2>
+                <div className="filter-controls">
+                    <label>Filter Status:</label>
+                    <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                        <option value="All">All</option>
+                        <option value="New">New</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
+                    </select>
                 </div>
 
-                <div className="header-user-info">
-                    <div className="header-welcome">
-                        <div className="user-avatar">
-                            {email.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: '500' }}>{email}</div>
-                            <span className="user-status-badge">{role}</span>
-                        </div>
+                <ul className="ticket-list">
+                    {loading ? (
+                        <p>Loading tickets...</p>
+                    ) : (
+                        filteredTickets.map((t) => (
+                            <li
+                                key={t.id}
+                                className={`ticket-item ${t.status.toLowerCase().replace(" ", "-")}`}
+                                onClick={() => {
+                                    setSelectedTicket(t);
+                                    setNewStatus(t.status);
+                                    setActionTaken(t.actionTaken || "");
+                                    setAdminView("details");
+                                }}
+                            >
+                                <p style={{ fontWeight: "bold" }}>
+                                    <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
+                                    Ticket Ref #{t.id} | Status: {t.status}
+                                </p>
+                                <p>
+                                    **Title:** {t.title}
+                                </p>
+                                <small style={{ display: "block", marginTop: "5px", color: "#718096" }}>
+                                    Booked by: **{t.createdBy}** on {new Date(t.createdAt).toLocaleString()}
+                                </small>
+                            </li>
+                        ))
+                    )}
+                </ul>
+            </>
+        );
+
+        const TicketDetails = () => (
+            <div className="ticket-details">
+                <button onClick={() => setAdminView("list")} className="back-button">
+                    &larr; Back to List
+                </button>
+                <h2>Ticket Details (Ref #{selectedTicket.id})</h2>
+                <div className="details-card">
+                    <p>
+                        <strong>Title:</strong> {selectedTicket.title}
+                    </p>
+                    <p>
+                        <strong>Description:</strong> {selectedTicket.description}
+                    </p>
+                    <p>
+                        <strong>Category:</strong> {selectedTicket.category}
+                    </p>
+                    <p>
+                        <strong>Priority:</strong> <span className={`priority-dot ${getPriorityDotClass(selectedTicket.priority)}`}></span> {selectedTicket.priority}
+                    </p>
+                    <p>
+                        <strong>Product/Service:</strong> {selectedTicket.product}
+                    </p>
+                    <p>
+                        <strong>Created By:</strong> {selectedTicket.createdBy}
+                    </p>
+                    <p>
+                        <strong>Date:</strong> {new Date(selectedTicket.createdAt).toLocaleString()}
+                    </p>
+                    <p>
+                        <strong>Current Status:</strong> {selectedTicket.status}
+                    </p>
+                    <p className="admin-action-taken">
+                        <strong>Action Taken (Fix):</strong> {selectedTicket.actionTaken || "N/A"}
+                    </p>
+                </div>
+
+                {/* Update Form */}
+                <h3>Update Ticket Status</h3>
+                <form onSubmit={handleUpdateTicket} className="update-form">
+                    <label>New Status:</label>
+                    <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} required>
+                        <option value="New">New</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+
+                    <label>Action Taken (Details of the Fix):</label>
+                    <textarea
+                        value={actionTaken}
+                        onChange={(e) => setActionTaken(e.target.value)}
+                        placeholder="Detail the steps taken to resolve the ticket..."
+                        rows="4"
+                    ></textarea>
+
+                    <button type="submit">Update Ticket</button>
+                </form>
+
+                {/* Messages/History Section (Simplified) */}
+                <div className="message-history">
+                    <h3>Messages</h3>
+                    {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
+                        <ul className="message-list">
+                            {selectedTicket.messages.map((m, index) => (
+                                <li key={index}>
+                                    <small>{new Date(m.timestamp).toLocaleString()}:</small>
+                                    <p>{m.text}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p>No messages yet.</p>
+                    )}
+                </div>
+            </div>
+        );
+
+        return (
+            <div className="app-container">
+                <header className="header admin-header">
+                    <img src={logo} alt="Capaciti Logo" className="logo" />
+                    <h1>Admin Portal</h1>
+                    <div className="header-controls">
+                        <p>Logged in as: <strong>{email}</strong></p>
+                        <button onClick={handleLogout} className="logout-button">Logout</button>
                     </div>
+                </header>
 
-                    {/* Admin's Quick Actions Menu */}
-                    {role === "Admin" && (
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {unreadTickets > 0 && (
-                                <div style={{
-                                    background: '#e53e3e',
-                                    color: 'white',
-                                    borderRadius: '50%',
-                                    width: '20px',
-                                    height: '20px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '12px',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {unreadTickets}
-                                </div>
-                            )}
-                            <button
-                                onClick={() => {
-                                    setShowQuickMenu(!showQuickMenu);
-                                    if (!showQuickMenu) setAdminView("tickets"); // Hide user management if menu is about to open
-                                }}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: '#F25c54',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
-                            >
-                                Quick Actions ▼
-                            </button>
+                <main className="admin-dashboard">
+                    {adminView === "list" && <TicketList />}
+                    {adminView === "details" && selectedTicket && <TicketDetails />}
+                </main>
 
-                            {showQuickMenu && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    right: 0,
-                                    background: 'white',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '8px',
-                                    padding: '10px',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    zIndex: 1000,
-                                    minWidth: '200px'
-                                }}>
-                                    <button
-                                        onClick={() => { handleRegisterUser(); setShowQuickMenu(false); }}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            textAlign: 'left',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            borderRadius: '4px'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
-                                        onMouseLeave={(e) => e.target.style.background = 'none'}
-                                    >
-                                        ➕ Register New User
-                                    </button>
-                                    <button
-                                        onClick={() => { setAdminView("userManagement"); setShowQuickMenu(false); }}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            textAlign: 'left',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            borderRadius: '4px'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
-                                        onMouseLeave={(e) => e.target.style.background = 'none'}
-                                    >
-                                        👥 Manage Users
-                                    </button>
-                                    <div style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }}></div>
-                                    <div style={{ padding: '8px', fontSize: '12px', color: '#718096' }}>
-                                        Tickets: {allTickets.length} | Users: {users.filter(u => u.role === 'User').length}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                <footer className="footer">
+                    <p>&copy; 2025 Capaciti. All Rights Reserved.</p>
+                </footer>
+            </div>
+        );
+    }
 
-                    {/* User's Quick Actions menu */}
-                    {role === "User" && (
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <button
-                                onClick={() => {
-                                    setShowQuickActions(!showQuickActions);
-                                    if (!showQuickActions) setUserView("tickets"); // Hide password form if menu is about to open
-                                }}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: '#F25c54',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
-                            >
-                                Quick Actions ▼
-                            </button>
-                            {showQuickActions && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    right: 0,
-                                    background: 'white',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '8px',
-                                    padding: '10px',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    zIndex: 1000,
-                                    minWidth: '200px'
-                                }}>
-                                    <button
-                                        onClick={() => {
-                                            setUserView("passwordChange");
-                                            setShowQuickActions(false);
-                                        }}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            textAlign: 'left',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            borderRadius: '4px'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.background = '#f7fafc'}
-                                        onMouseLeave={(e) => e.target.style.background = 'none'}
-                                    >
-                                        Change Password
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
+    // -----------------------------------------------------------------------
+    // USER VIEW
+    // -----------------------------------------------------------------------
 
-                    <button onClick={handleLogout} style={{
-                        padding: '10px 20px',
-                        background: 'transparent',
-                        border: '2px solid #F25c54',
-                        borderRadius: '8px',
-                        color: '#F25c54',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        transition: 'all 0.3s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}>
-                        <span>🚪</span> Logout
-                    </button>
+    return (
+        <div className="app-container">
+            <header className="header user-header">
+                <img src={logo} alt="Capaciti Logo" className="logo" />
+                <h1>User Dashboard</h1>
+                <div className="header-controls">
+                    <p>Logged in as: <strong>{email}</strong></p>
+                    <button onClick={handleLogout} className="logout-button">Logout</button>
                 </div>
             </header>
 
-            <main className="dashboard-container">
-                {/* ------------------- USER VIEW ------------------- */}
-                {role === "User" && (
-                    <div className="user-dashboard">
-                        {userView === "tickets" && (
-                            <>
-                                {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                                    <h2 className="section-title">My Tickets</h2>
-                                </div>
-                                <form onSubmit={handleCreateTicket}>
-                                    <div className="form-group">
-                                        <label htmlFor="product">Product</label>
-                                        <input id="product" type="text" value={product} onChange={(e) => setProduct(e.target.value)} required />
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="title">Title</label>
-                                        <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="description">Description</label>
-                                        <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="category">Category</label>
-                                        <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                                            <option>General</option>
-                                            <option>Technical</option>
-                                            <option>Billing</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="priority">Priority</label>
-                                        <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
-                                            <option>Low</option>
-                                            <option>Medium</option>
-                                            <option>High</option>
-                                        </select>
-                                    </div>
-                                    <button className="submit-button" type="submit" disabled={loading}>{loading ? "Loading..." : "Submit Ticket"}</button>
-                                </form>
-                                <hr style={{ margin: "20px 0" }} />
-                                <h3>My Tickets</h3>
-                                <ul className="user-ticket-list">
-                                    {tickets.map((t) => (
-                                        <li key={t.id}>
-                                            <div>
-                                                {/* Priority Dot & Ref # */}
-                                                <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
-                                                <strong>Ref #{t.id}</strong> | {t.product} |
-                                                {/* Category Abbreviation & Title */}
-                                                <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
-                                                {t.title} ({t.status})
-                                            </div>
-                                            <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </>
-                        )}
+            <div className="quick-actions-bar">
+                <button onClick={() => setUserView("tickets")} className={userView === "tickets" ? "active" : ""}>My Tickets</button>
+                <button onClick={() => setUserView("passwordChange")} className={userView === "passwordChange" ? "active" : ""}>Change Password</button>
+                <button onClick={() => setShowQuickActions(!showQuickActions)}>{showQuickActions ? 'Hide Actions' : 'Show Actions'}</button>
+            </div>
 
-                        {userView === "passwordChange" && (
-                            <div className="password-change-section">
-                                <h3>Change Password</h3>
-                                <form onSubmit={handlePasswordChange}>
-                                    {passwordChangeMessage && <p style={{ color: "red" }}>{passwordChangeMessage}</p>}
-                                    <div className="form-group">
-                                        <label htmlFor="currentPassword">Current Password</label>
-                                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="newPassword">New Password</label>
-                                        <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                                    </div>
-                                    <button className="submit-button" type="submit">Update Password</button>
-                                </form>
-                            </div>
-                        )}
-                    </div>
-                )}
+            {userView === "passwordChange" && (
+                <main className="content-container password-change-container">
+                    <h2>Change Password</h2>
+                    <form onSubmit={handlePasswordChange} className="password-form">
+                        <label>Current Password</label>
+                        <input
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            required
+                        />
 
-                {/* ------------------- ADMIN VIEW ------------------- */}
-                {role === "Admin" && (
-                    <>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                            <h2 className="section-title">
-                                {/* UPDATED: Show count of individual tickets */}
-                                {adminView === "tickets" ? `Tickets (${displayedTickets.length})` : "User Management"}
-                            </h2>
-                            {adminView === "userManagement" && (
-                                <button
-                                    onClick={() => setAdminView("tickets")}
-                                    style={{
-                                        padding: '8px 16px',
-                                        border: '2px solid #F25c54',
-                                        background: 'transparent',
-                                        color: '#F25c54',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        fontWeight: '500'
-                                    }}
-                                >
-                                    Back to Tickets
-                                </button>
-                            )}
-                        </div>
-
-                        {adminView === "tickets" && (
-                            <>
-                                <div className="admin-controls">
-                                    <button className={filterStatus === "All" ? "active" : ""} onClick={() => setFilterStatus("All")}>All</button>
-                                    <button className={filterStatus === "Open" ? "active" : ""} onClick={() => setFilterStatus("Open")}>Open</button>
-                                    <button className={filterStatus === "In Progress" ? "active" : ""} onClick={() => setFilterStatus("In Progress")}>In Progress</button>
-                                    <button className={filterStatus === "Closed" ? "active" : ""} onClick={() => setFilterStatus("Closed")}>Closed</button>
-                                    <button className={filterStatus === "Ready for Collection" ? "active" : ""} onClick={() => setFilterStatus("Ready for Collection")}>Ready for Collection</button>
-                                    <form onSubmit={handleAdminSearch}>
-                                        <input
-                                            type="text"
-                                            placeholder="Search by product..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                        />
-                                        <button type="submit">Search</button>
-                                    </form>
-                                </div>
-                                {/* RESTORED: Table now lists individual tickets using displayedTickets */}
-                                <div className="admin-table-wrapper">
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Ref #</th>
-                                                <th>From</th>
-                                                <th>Title</th>
-                                                <th>Product</th>
-                                                <th>Status</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displayedTickets.map((t) => (
-                                                <tr key={t.id}>
-                                                    <td>
-                                                        <span className={`priority-dot ${getPriorityDotClass(t.priority)}`}></span>
-                                                        {t.id}
-                                                    </td>
-                                                    <td>{t.createdBy}</td>
-                                                    <td>
-                                                        <span className="category-abbr">({getCategoryAbbreviation(t.category)})</span>
-                                                        {t.title}
-                                                    </td>
-                                                    <td>{t.product}</td>
-                                                    <td>{t.status}</td>
-                                                    <td>
-                                                        <button onClick={() => openTicketDetailsPopup(t)}>View Details</button>
-                                                        {/* History button remains, but now works from individual ticket */}
-                                                        <button onClick={() => openAdminProductHistoryPopup(t.product)}>View History</button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {displayedTickets.length === 0 && (
-                                    <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
-                                        No tickets match the current filter/search.
-                                    </p>
-                                )}
-                            </>
-                        )}
-
-                        {adminView === "userManagement" && (
-                            <div className="user-management">
-                                <div className="user-count">
-                                    <strong>Total Users: {users.filter(user => user.role === "User").length}</strong>
-                                </div>
-
-                                <table className="users-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Email</th>
-                                            <th>Role</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {users.filter(user => user.role === "User").map((user) => (
-                                            <tr key={user.email}>
-                                                <td>{user.email}</td>
-                                                <td>{user.role}</td>
-                                                <td>
-                                                    <button
-                                                        className="danger-button"
-                                                        onClick={() => handleDeregisterUser(user.email)}
-                                                        title="Deregister user"
-                                                    >
-                                                        Deregister
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-
-                                {users.filter(user => user.role === "User").length === 0 && (
-                                    <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
-                                        No users registered yet.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </>
-                )}
-            </main>
-
-            {/* ------------------- TICKET DETAILS POPUP (FOR BOTH USERS AND ADMINS) ------------------- */}
-            {selectedTicket && (
-                <div className="popup-overlay">
-                    <div className="popup">
-                        <div className="popup-header">
-                            <h3>Ticket Ref #{selectedTicket.id}</h3>
-                            <button className="close-button" onClick={closeTicketDetailsPopup}>&times;</button>
-                        </div>
-                        <p><strong>Status:</strong> {selectedTicket.status}</p>
-                        <p>
-                            <strong>Title:</strong>
-                            <span className="category-abbr">({getCategoryAbbreviation(selectedTicket.category)})</span>
-                            {selectedTicket.title}
-                        </p>
-                        <p>
-                            <strong>Priority:</strong>
-                            <span className={`priority-dot ${getPriorityDotClass(selectedTicket.priority)}`}></span>
-                            {selectedTicket.priority}
-                        </p>
-                        <p><strong>Description:</strong> {selectedTicket.description}</p>
-                        <p><strong>Product:</strong> {selectedTicket.product || 'N/A'}</p>
-                        <p><strong>Created By:</strong> {selectedTicket.createdBy}</p>
-
-                        {/* Show Fix/Action Taken if available */}
-                        {selectedTicket.actionTaken && (
-                            <p style={{ marginTop: '10px', padding: '10px', background: '#f0f4f8', borderRadius: '4px' }}>
-                                <strong>Admin Action/Fix:</strong> {selectedTicket.actionTaken}
-                            </p>
-                        )}
-
-                        {/* Conditionally render actions for admin only */}
-                        {role === "Admin" && (
-                            <>
-                                <h4>Actions</h4>
-                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                    <button
-                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Collected")}
-                                        className="action-button-collected"
-                                    >
-                                        Mark Collected
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleUpdateTicket(selectedTicket.id, "In Progress")}
-                                        className="action-button-inprogress"
-                                    >
-                                        Mark In Progress
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Ready for Collection")}
-                                        className="action-button-ready"
-                                    >
-                                        Mark Ready for Collection
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleCommunicate(selectedTicket.id)}
-                                        className="action-button-communicate"
-                                    >
-                                        Communicate
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleUpdateTicket(selectedTicket.id, "Closed")}
-                                        className="action-button-close"
-                                    >
-                                        Close Ticket
-                                    </button>
-                                </div>
-                            </>
-                        )}
-
-
-                        <h4>Communication History</h4>
-                        <ul>
-                            {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
-                                selectedTicket.messages.map((msg, index) => (
-                                    <li key={index}>
-                                        <small>{new Date(msg.timestamp).toLocaleString()}</small>
-                                        <p><em>{msg.text}</em></p>
-                                    </li>
-                                ))
-                            ) : (
-                                <li>No messages yet.</li>
-                            )}
-                        </ul>
-                    </div>
-                </div>
+                        <label>New Password (min 6 chars)</label>
+                        <input
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            required
+                        />
+                        <button type="submit">Change Password</button>
+                        {passwordChangeMessage && <p className="message">{passwordChangeMessage}</p>}
+                    </form>
+                </main>
             )}
 
-            {/* ------------------- ADMIN HISTORY POPUP ------------------- */}
-            {productHistoryPopup && role === "Admin" && (
-                <div className="popup-overlay">
-                    <div className="popup" style={{ maxWidth: '600px' }}>
-                        <div className="popup-header">
-                            {/* UPDATED: Show count of history tickets */}
-                            <h3>Booking History for **{historyProductName}** ({productHistory.length} times)</h3>
-                            <button className="close-button" onClick={() => setProductHistoryPopup(false)}>&times;</button>
-                        </div>
-                        <ul className="history-list">
-                            {productHistory.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
-                                    Loading history... (If this persists, check your server logs.)
-                                </p>
-                            ) : (
-                                productHistory.map((h, index) => (
-                                    <li key={h.id} style={{ borderBottom: index < productHistory.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
+            {userView === "tickets" && (
+                <div className="content-container user-view">
+                    {showQuickActions && (
+                        <div className="submit-ticket-form">
+                            <h2>Submit New Ticket</h2>
+                            <form onSubmit={handleTicketSubmit}>
+                                <label>Title</label>
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    required
+                                />
 
+                                <label>Description</label>
+                                <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    required
+                                    rows="4"
+                                />
+
+                                <label>Product/Service</label>
+                                <input
+                                    type="text"
+                                    value={product}
+                                    onChange={(e) => setProduct(e.target.value)}
+                                    required
+                                />
+
+                                <label>Category</label>
+                                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                                    <option value="General">General</option>
+                                    <option value="Technical">Technical</option>
+                                    <option value="Billing">Billing</option>
+                                </select>
+
+                                <label>Priority</label>
+                                <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+
+                                <button type="submit">Submit Ticket</button>
+                                {confirmation && <p className="message">{confirmation}</p>}
+                            </form>
+                        </div>
+                    )}
+
+                    <div className="ticket-history">
+                        <h2>My Ticket History</h2>
+                        <button onClick={() => fetchUserTickets(email)} className="refresh-button">Refresh Tickets</button>
+                        <ul className="ticket-list">
+                            {loading ? (
+                                <p>Loading tickets...</p>
+                            ) : tickets.length === 0 ? (
+                                <p>You have no tickets logged.</p>
+                            ) : (
+                                tickets.map((h) => (
+                                    <li
+                                        key={h.id}
+                                        className={`ticket-item ${h.status.toLowerCase().replace(" ", "-")}`}
+                                    >
                                         <p style={{ fontWeight: 'bold' }}>
                                             <span className={`priority-dot ${getPriorityDotClass(h.priority)}`}></span>
                                             Ticket Ref #{h.id} | Status: {h.status}
